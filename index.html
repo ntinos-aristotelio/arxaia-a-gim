@@ -1,27 +1,59 @@
-
 <!DOCTYPE html>
 <html lang="el">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Αρχαία Α Γυμνασίου</title>
-<link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Η Ακαδημία των Αρχαίων</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<header>
-<h1>🏛️ Αποστολές στα Αρχαία</h1>
-<p>Παίξε • Μάθε • Κέρδισε Δόξα</p>
-</header>
+  <div class="ambient"></div>
+  <header class="hero">
+    <nav class="topbar">
+      <div class="brand">🏛️ Η Ακαδημία των Αρχαίων</div>
+      <button id="resetBtn" class="ghost">Νέα πορεία</button>
+    </nav>
+    <section class="intro-card">
+      <p class="eyebrow">Αρχαία Ελληνική Γλώσσα • Α΄ Γυμνασίου</p>
+      <h1>Πέρασε την Πύλη της Ακαδημίας</h1>
+      <p>Κάθε ενότητα γίνεται αποστολή. Κάθε κανόνας γίνεται δοκιμασία. Κάθε σωστή απάντηση φέρνει τον μαθητή πιο κοντά στον τίτλο του Ρήτορα.</p>
+      <div class="profile-box">
+        <input id="studentName" placeholder="Όνομα μαθητή" maxlength="22" />
+        <button id="startBtn">Είσοδος στην Ακαδημία</button>
+      </div>
+    </section>
+  </header>
 
-<section class="stats">
-<div class="card">⚡ XP: <span id="xp">0</span></div>
-<div class="card">🏺 Επίπεδο: <span id="level">1</span></div>
-<div class="card">👑 Σωστές: <span id="correct">0</span></div>
-</section>
+  <main class="app-shell hidden" id="appShell">
+    <aside class="codex-panel">
+      <h2 id="greeting">Χαίρε!</h2>
+      <div class="rank" id="rankTitle">Νέος Μαθητής</div>
+      <div class="meter"><span id="xpBar"></span></div>
+      <div class="stat-grid">
+        <div><strong id="xp">0</strong><small>XP</small></div>
+        <div><strong id="coins">0</strong><small>οβολοί</small></div>
+        <div><strong id="streak">0</strong><small>σερί</small></div>
+        <div><strong id="relics">0</strong><small>κειμήλια</small></div>
+      </div>
+      <h3>Σήματα</h3>
+      <div id="badges" class="badges"></div>
+    </aside>
 
-<section id="units"></section>
+    <section class="world">
+      <div class="section-title">
+        <p class="eyebrow">Χάρτης Προόδου</p>
+        <h2>Διάλεξε περιοχή και ξεκίνα αποστολή</h2>
+      </div>
+      <div id="map" class="map"></div>
+      <div id="lessonView" class="lesson-view"></div>
+    </section>
+  </main>
 
-<script src="data.js"></script>
-<script src="app.js"></script>
+  <template id="exerciseTemplate">
+    <article class="exercise"></article>
+  </template>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

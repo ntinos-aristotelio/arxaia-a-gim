@@ -1,56 +1,33 @@
+const $ = (sel) => document.querySelector(sel);
+const stateKey = 'akadimiaArxaionProgressV1';
+let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
+state = Object.assign({name:'', xp:0, coins:0, streak:0, completed:{}, badges:[], answers:{}}, state);
 
-let xp = 0;
-let correct = 0;
+function save(){ localStorage.setItem(stateKey, JSON.stringify(state)); }
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1900); }
+function rank(){ if(state.xp>=700) return 'Φιλόσοφος της Ακαδημίας'; if(state.xp>=420) return 'Ρήτωρ'; if(state.xp>=220) return 'Φύλακας των Λέξεων'; if(state.xp>=90) return 'Μαθητευόμενος Γραμματιστής'; return 'Νέος Μαθητής'; }
+function addBadge(b){ if(!state.badges.includes(b)){ state.badges.push(b); toast('Νέο σήμα: '+b); } }
+function award(id, points=20){ if(state.answers[id]) return false; state.answers[id]=true; state.xp += points; state.coins += Math.ceil(points/10); state.streak += 1; if(state.streak===3) addBadge('Σερί 3 σωστών'); if(state.xp>=100) addBadge('Πρώτα 100 XP'); save(); renderStats(); return true; }
+function miss(){ state.streak=0; save(); renderStats(); }
+function renderStats(){ $('#greeting').textContent = 'Χαίρε, ' + (state.name || 'μαθητή') + '!'; $('#rankTitle').textContent = rank(); $('#xp').textContent=state.xp; $('#coins').textContent=state.coins; $('#streak').textContent=state.streak; $('#relics').textContent=Object.keys(state.completed).length; $('#xpBar').style.width=Math.min(100,(state.xp%180)/180*100)+'%'; $('#badges').innerHTML = state.badges.length ? state.badges.map(b=>`<span class="badge">${b}</span>`).join('') : '<span class="source">Τα σήματα θα εμφανιστούν εδώ.</span>'; }
+function start(){ const input=$('#studentName').value.trim(); if(input) state.name=input; if(!state.name) state.name='Μαθητής'; save(); $('.hero').classList.add('hidden'); $('#appShell').classList.remove('hidden'); render(); }
+$('#startBtn').addEventListener('click', start); $('#studentName').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
+$('#resetBtn').addEventListener('click',()=>{ if(confirm('Να μηδενιστεί η πορεία;')){ localStorage.removeItem(stateKey); location.reload(); }});
+if(state.name){ $('.hero').classList.add('hidden'); $('#appShell').classList.remove('hidden'); render(); }
 
-function updateStats(){
-document.getElementById("xp").innerText = xp;
-document.getElementById("correct").innerText = correct;
-document.getElementById("level").innerText = Math.floor(xp/50)+1;
-}
-
-function createQuiz(game){
-const div = document.createElement("div");
-div.className="game";
-
-div.innerHTML=`<h4>${game.question}</h4>`;
-
-game.options.forEach((opt,index)=>{
-const btn = document.createElement("button");
-btn.className="option";
-btn.innerText=opt;
-
-btn.onclick=()=>{
-if(index===game.answer){
-btn.style.background="#90be6d";
-xp += 25;
-correct++;
-alert("🏛️ Σωστό! Κέρδισες 25 XP");
-}else{
-btn.style.background="#e76f51";
-alert("❌ Δοκίμασε ξανά!");
-}
-updateStats();
-};
-
-div.appendChild(btn);
-});
-
-return div;
-}
-
-const container = document.getElementById("units");
-
-units.forEach(unit=>{
-const section = document.createElement("section");
-section.className="unit";
-
-section.innerHTML=`<h2>${unit.title}</h2><p>${unit.intro}</p>`;
-
-unit.games.forEach(game=>{
-section.appendChild(createQuiz(game));
-});
-
-container.appendChild(section);
-});
-
-updateStats();
+function isUnlocked(i){ return i===0 || state.completed[ACADEMY_UNITS[i-1].id]; }
+function render(){ renderStats(); renderMap(); openUnit(ACADEMY_UNITS.findIndex(u=>!state.completed[u.id])); }
+function renderMap(){ $('#map').innerHTML = ACADEMY_UNITS.map((u,i)=>`<button class="node ${state.completed[u.id]?'done':''} ${!isUnlocked(i)?'locked':''}" data-i="${i}"><div class="icon">${u.icon}</div><h3>${u.place}</h3><strong>${u.title}</strong><br><small>${isUnlocked(i)?'Άνοιγμα αποστολής':'Κλειδωμένο'}</small></button>`).join(''); document.querySelectorAll('.node').forEach(n=>n.addEventListener('click',()=>{ const i=+n.dataset.i; if(!isUnlocked(i)) return toast('Πρώτα ολοκλήρωσε την προηγούμενη περιοχή.'); openUnit(i); })); }
+function openUnit(i){ if(i<0) i=0; const u=ACADEMY_UNITS[i]; const done = !!state.completed[u.id]; $('#lessonView').innerHTML = `<article class="lesson-card"><div class="lesson-head"><div><p class="eyebrow">${u.place}</p><h2>${u.icon} ${u.title}</h2></div><button onclick="completeUnit('${u.id}')">${done?'Ολοκληρώθηκε':'Σφράγισε την αποστολή'}</button></div><p>${u.story}</p><p class="source">${u.source}</p><div class="micro-grid">${u.microLessons.map(m=>`<div class="micro"><strong>${m.title}</strong><p>${m.body}</p></div>`).join('')}</div><div class="footer-actions"><button onclick="renderExercises('${u.id}')">Άνοιγμα δοκιμασιών</button><button class="ghost" style="color:#172033;border-color:#c7a35a" onclick="teacherNote('${u.id}')">Σημείωση καθηγητή</button></div></article><div id="exercises"></div>`; renderExercises(u.id); }
+window.teacherNote = function(id){ const u=ACADEMY_UNITS.find(x=>x.id===id); toast('Η ενότητα πατά στο υλικό σου: '+u.source.replace('Βασισμένο ','βασισμένο ')); }
+window.completeUnit = function(id){ const u=ACADEMY_UNITS.find(x=>x.id===id); const solved = u.exercises.filter((_,idx)=>state.answers[id+'-'+idx]).length; if(solved < Math.min(2,u.exercises.length)) return toast('Λύσε τουλάχιστον 2 δοκιμασίες για να σφραγιστεί.'); if(!state.completed[id]){ state.completed[id]=true; state.xp+=50; state.coins+=8; addBadge(u.relic); toast('Κέρδισες κειμήλιο: '+u.relic); save(); render(); } }
+window.renderExercises = function(id){ const u=ACADEMY_UNITS.find(x=>x.id===id); $('#exercises').innerHTML = u.exercises.map((ex,idx)=>exerciseHTML(ex,id+'-'+idx)).join(''); bindExercises(u); }
+function exerciseHTML(ex,id){ if(ex.type==='choice') return `<article class="exercise" data-id="${id}" data-type="choice"><h3>⚔️ ${ex.title}</h3><p>${ex.prompt}</p><div class="options">${ex.options.map((o,i)=>`<button class="option" data-a="${i}">${o}</button>`).join('')}</div><div class="feedback"></div></article>`; if(ex.type==='fill') return `<article class="exercise" data-id="${id}" data-type="fill"><h3>📜 ${ex.title}</h3><p>${ex.prompt}</p><input placeholder="γράψε απάντηση"><button class="checkFill">Έλεγχος</button><button class="ghost hint" style="color:#172033;border-color:#c7a35a">Υπόδειξη</button><div class="feedback"></div></article>`; if(ex.type==='match') return `<article class="exercise" data-id="${id}" data-type="match"><h3>🧩 ${ex.title}</h3><p>Πάτησε πρώτα αρχαία λέξη και μετά τη σωστή σημασία.</p><div class="match-grid"><div>${ex.pairs.map((p,i)=>`<div class="pill left" data-v="${i}">${p[0]}</div>`).join('')}</div><div>${shuffle(ex.pairs.map((p,i)=>[p[1],i])).map(p=>`<div class="pill right" data-v="${p[1]}">${p[0]}</div>`).join('')}</div></div><div class="feedback"></div></article>`; if(ex.type==='sort') return `<article class="exercise" data-id="${id}" data-type="sort"><h3>🏺 ${ex.title}</h3><p>Πάτησε τις κάρτες με τη σωστή σειρά: ονομαστική, γενική, δοτική, αιτιατική.</p><div class="sort-list">${shuffle(ex.items).map(it=>`<div class="sort-item">${it}</div>`).join('')}</div><button class="checkSort">Έλεγχος σειράς</button><div class="feedback"></div></article>`; }
+function bindExercises(u){ document.querySelectorAll('.exercise').forEach((card,idx)=>{ const ex=u.exercises[idx]; const id=card.dataset.id; if(state.answers[id]) card.querySelector('.feedback').textContent='✓ Έχει λυθεί.';
+  if(ex.type==='choice') card.querySelectorAll('.option').forEach(btn=>btn.onclick=()=>{ const ok=+btn.dataset.a===ex.answer; btn.classList.add(ok?'correct':'wrong'); card.querySelector('.feedback').textContent=ok?ex.feedback:'Όχι ακόμα. Ξανασκέψου τον κανόνα.'; ok?award(id,25):miss(); });
+  if(ex.type==='fill'){ card.querySelector('.hint').onclick=()=>card.querySelector('.feedback').textContent=ex.hint; card.querySelector('.checkFill').onclick=()=>{ const val=normalize(card.querySelector('input').value); const ok=val===normalize(ex.answer); card.querySelector('.feedback').textContent=ok?'Σωστά. Ο πάπυρος άνοιξε.':'Όχι ακόμα. Πρόσεξε τόνους/κατάληξη, αλλά μπορείς να γράψεις και χωρίς τόνο.'; ok?award(id,30):miss(); }}
+  if(ex.type==='match'){ let left=null, count=0; card.querySelectorAll('.left').forEach(p=>p.onclick=()=>{ left=p; card.querySelectorAll('.pill').forEach(x=>x.classList.remove('selected')); p.classList.add('selected'); }); card.querySelectorAll('.right').forEach(p=>p.onclick=()=>{ if(!left) return; if(left.dataset.v===p.dataset.v){ left.style.visibility='hidden'; p.style.visibility='hidden'; count++; if(count===ex.pairs.length){ card.querySelector('.feedback').textContent='Όλα ταιριάστηκαν σωστά.'; award(id,35); }} else { card.querySelector('.feedback').textContent='Δεν ταιριάζουν. Δοκίμασε άλλο ζευγάρι.'; miss(); } }); }
+  if(ex.type==='sort'){ const picked=[]; card.querySelectorAll('.sort-item').forEach(it=>it.onclick=()=>{ if(it.classList.contains('active')) return; it.classList.add('active'); picked.push(it.textContent); it.textContent = picked.length+'. '+it.textContent; }); card.querySelector('.checkSort').onclick=()=>{ const ok=JSON.stringify(picked)===JSON.stringify(ex.correct); card.querySelector('.feedback').textContent=ok?'Η σειρά των πτώσεων είναι σωστή.':'Η σωστή σειρά είναι: '+ex.correct.join(' → '); ok?award(id,35):miss(); }; }
+}); }
+function normalize(s){ return (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ς/g,'σ'); }
+function shuffle(arr){ return arr.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
