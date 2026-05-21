@@ -1,16 +1,27 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="el">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17120b">
-  <title>Αρχαία Α΄ Γυμνασίου | Μουσείο Αποστολών</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Αρχαία Α Γυμνασίου</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app"></div>
-  <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="data.js"></script>
-  <script src="app.js"></script>
+<header>
+<h1>🏛️ Αποστολές στα Αρχαία</h1>
+<p>Παίξε • Μάθε • Κέρδισε Δόξα</p>
+</header>
+
+<section class="stats">
+<div class="card">⚡ XP: <span id="xp">0</span></div>
+<div class="card">🏺 Επίπεδο: <span id="level">1</span></div>
+<div class="card">👑 Σωστές: <span id="correct">0</span></div>
+</section>
+
+<section id="units"></section>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
