@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Παιχνίδι Αρχαίων Ελληνικών</title>
+    <style>
+        /* Εδώ ρυθμίζουμε την εμφάνιση (χρώματα, γραμματοσειρές) */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #e6f2ff; /* Απαλό γαλάζιο */
+            text-align: center; 
+            padding: 20px; 
+        }
+        #game-container { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+            max-width: 500px; 
+            margin: auto; 
+        }
+        h2 { color: #004494; }
+        button { 
+            background-color: #0056b3; 
+            color: white; 
+            border: none; 
+            padding: 12px 20px; 
+            margin: 8px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            width: 80%;
+            transition: 0.3s; 
+        }
+        button:hover { background-color: #003d82; transform: scale(1.05); }
+        #word-display { 
+            font-size: 36px; 
+            font-weight: bold; 
+            margin: 20px 0; 
+            color: #2c3e50; 
+        }
+        #score-display { font-size: 20px; font-weight: bold; color: #555; }
+        #message { font-size: 18px; font-weight: bold; height: 25px; }
+    </style>
+</head>
+<body>
+
+    <!-- Εδώ είναι ο ελάχιστος σκελετός HTML -->
+    <div id="game-container">
+        <h2>Μαθαίνω Αρχαία Παίζοντας! 🏛️</h2>
+        <p id="score-display">Σκορ: <span id="score">0</span></p>
+        
+        <div id="word-display">Λέξη</div>
+        <div id="options"></div>
+        
+        <p id="message"></p>
+    </div>
+
+    <!-- Εδώ ξεκινάει η JavaScript (η λογική του παιχνιδιού) -->
+    <script>
+        // ΚΑΘΗΓΗΤΗ ΜΟΥ, ΕΔΩ ΠΡΟΣΘΕΤΕΤΕ ΤΙΣ ΛΕΞΕΙΣ ΣΑΣ!
+        // Απλώς ακολουθήστε το ίδιο μοτίβο: αρχαία λέξη, σωστή μετάφραση, και 3 λάθος επιλογές.
+        const vocabulary = [
+            { ancient: "ὕδωρ", correct: "νερό", wrong: ["φωτιά", "αέρας", "γη"] },
+            { ancient: "παῖς", correct: "παιδί", wrong: ["γέροντας", "πατέρας", "δάσκαλος"] },
+            { ancient: "γυνή", correct: "γυναίκα", wrong: ["άνδρας", "κόρη", "θεά"] },
+            { ancient: "ἀγαθός", correct: "καλός / ενάρετος", wrong: ["κακός", "γρήγορος", "δυνατός"] },
+            { ancient: "λέγω", correct: "λέω / μιλάω", wrong: ["τρέχω", "γράφω", "ακούω"] },
+            { ancient: "οἶκος", correct: "σπίτι / οικογένεια", wrong: ["δρόμος", "πόλη", "αγορά"] }
+        ];
+
+        let score = 0;
+
+        function loadQuestion() {
+            document.getElementById('message').innerText = "";
+            
+            // Επιλογή τυχαίας λέξης από τη λίστα σας
+            const randomIndex = Math.floor(Math.random() * vocabulary.length);
+            const currentWord = vocabulary[randomIndex];
+
+            document.getElementById('word-display').innerText = currentWord.ancient;
+
+            // Ενώνουμε τη σωστή απάντηση με τις λάθος
+            let options = [currentWord.correct, ...currentWord.wrong];
+            
+            // Ανακατεύουμε τις επιλογές για να μην είναι πάντα στην ίδια θέση
+            options.sort(() => Math.random() - 0.5);
+
+            const optionsContainer = document.getElementById('options');
+            optionsContainer.innerHTML = ""; // Καθαρίζουμε τα παλιά κουμπιά
+
+            // Φτιάχνουμε τα κουμπιά με τη JavaScript
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.innerText = option;
+                button.onclick = () => checkAnswer(option, currentWord.correct);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function checkAnswer(selected, correct) {
+            if (selected === correct) {
+                score += 10; // 10 πόντοι για κάθε σωστό!
+                document.getElementById('score').innerText = score;
+                document.getElementById('message').innerText = "Εύγε! 👏";
+                document.getElementById('message').style.color = "green";
+                
+                // Πάμε στην επόμενη ερώτηση μετά από 1.5 δευτερόλεπτο
+                setTimeout(loadQuestion, 1500); 
+            } else {
+                document.getElementById('message').innerText = "Λάθος, προσπάθησε ξανά! 🤔";
+                document.getElementById('message').style.color = "red";
+                // Αφαιρούμε 5 πόντους για το λάθος (προαιρετικό)
+                if(score > 0) score -= 5;
+                document.getElementById('score').innerText = score;
+            }
+        }
+
+        // Ξεκινάει το παιχνίδι μόλις φορτώσει η σελίδα
+        loadQuestion();
+    </script>
+</body>
+</html>
