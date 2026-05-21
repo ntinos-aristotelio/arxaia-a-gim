@@ -4,30 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ακαδημία Ηρώων των Αρχαίων Ελληνικών</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #eff6ff, #f8fafc, #ecfeff);
-            --sidebar-bg: #1a2536;
+            --bg-gradient: linear-gradient(135deg, #f8fafc, #f1f5f9, #e2e8f0);
+            --sidebar-bg: #1e293b;
             --text-main: #0f172a;
-            --accent-blue: #0056b3;
-            --accent-hover: #004085;
+            --accent-blue: #0284c7;
+            --accent-hover: #0369a1;
             --card-bg: #ffffff;
-            --border-color: rgba(148,163,184,0.15);
+            --border-color: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body { 
-            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             color: var(--text-main);
             background: var(--bg-gradient);
-            display: flex;
             min-height: 100vh;
+            display: flex;
         }
+
+        /* LANDING PAGE SCREEN */
+        #landing-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #landing-screen h1 { font-size: 3.5rem; margin-bottom: 20px; font-family: Georgia, serif; letter-spacing: 1px; }
+        #landing-screen p { font-size: 1.3rem; color: #94a3b8; max-width: 600px; margin-bottom: 40px; line-height: 1.6; }
+        
+        .btn-start {
+            background: #0284c7;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 16px 40px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-start:hover { background: #0369a1; transform: translateY(-2px); }
 
         /* SIDEBAR */
         #sidebar {
-            width: 320px;
+            width: 300px;
             background-color: var(--sidebar-bg);
             color: white;
             display: flex;
@@ -44,59 +82,30 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
         }
 
-        .sidebar-menu {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-        }
-
-        .menu-category {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #7f8c8d;
-            margin: 16px 0 8px 8px;
-        }
+        .sidebar-menu { flex: 1; overflow-y: auto; padding: 16px; }
+        .menu-category { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin: 16px 0 8px 8px; }
 
         .chapter-header {
             padding: 12px;
             background: rgba(255,255,255,0.03);
             border-radius: 8px;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             font-weight: 600;
             font-size: 14px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 10px;
             cursor: pointer;
-        }
-
-        .sub-item {
-            padding: 10px 16px;
-            font-size: 13px;
-            cursor: pointer;
-            border-radius: 6px;
-            margin-left: 12px;
-            margin-bottom: 2px;
-            display: flex;
-            justify-content: space-between;
             color: #cbd5e1;
-            transition: 0.2s;
         }
 
-        .sub-item:hover { background: rgba(255,255,255,0.05); color: white; }
-        .sub-item.active { background: var(--accent-blue); color: white; font-weight: bold; }
+        .chapter-header.active { background: var(--accent-blue); color: white; }
 
-        /* MAIN CONTENT AREA */
-        #main-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
+        /* MAIN APP WRAPPER */
+        #main-wrapper { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
 
         .topbar {
             background: white;
@@ -108,165 +117,139 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border-bottom: 1px solid #e2e8f0;
         }
-
         .topbar-title { font-weight: bold; font-size: 16px; display: flex; align-items: center; gap: 8px; }
 
-        .content-padding {
-            padding: 32px;
-            max-width: 1200px;
-            width: 100%;
-            margin: 0 auto;
-        }
+        .content-padding { padding: 32px; max-width: 1400px; width: 100%; margin: 0 auto; }
 
         /* HERO & STATS */
-        .lessonHero {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 24px;
-            background: transparent;
-        }
-        .lessonHero h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+        .lessonHero { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 24px; }
+        .lessonHero h1 { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
         .lessonHero p { color: #64748b; font-size: 15px; }
 
         .bossPanel {
-            background: #111827;
-            color: white;
-            padding: 16px 24px;
-            border-radius: 16px;
-            display: flex;
-            gap: 24px;
-            justify-content: space-around;
-            min-width: 250px;
-            align-items: center;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            background: #1e293b; color: white; padding: 14px 24px; border-radius: 16px;
+            display: flex; gap: 24px; justify-content: space-around; min-width: 250px; align-items: center;
         }
         .stat-item { text-align: center; }
-        .stat-item span { display: block; font-size: 22px; font-weight: bold; color: #ffffff; }
-        .stat-item label { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-item span { display: block; font-size: 22px; font-weight: bold; }
+        .stat-item label { font-size: 11px; color: #94a3b8; text-transform: uppercase; }
 
-        /* TWO COLUMN LAYOUT */
-        .twoCol {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
+        /* LAYOUTS */
+        .twoCol { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px; align-items: start; }
+        
+        .card { background: white; padding: 24px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+        .card h3 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
 
-        .card {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-            border: 1px solid #e2e8f0;
-        }
-        .card h3 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #1e293b; }
+        /* THEMED TABLE FOR DICTIONARY */
+        .vocab-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .vocab-table th, .vocab-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+        .vocab-table th { background: #f8fafc; color: #475569; font-weight: 700; font-size: 14px; }
+        .vocab-table td.ancient { font-weight: 700; color: #0369a1; font-size: 15px; font-family: Georgia, serif; }
+        .vocab-table td.modern { color: #334155; font-size: 14px; }
+        .vocab-table tr:hover { background: #fcfdfe; }
 
-        /* THEORY COMPONENTS */
-        .theory-step {
-            background: #f8fafc;
-            padding: 14px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            border: 1px solid #e2e8f0;
-        }
-        .theory-step strong { color: var(--accent-blue); display: block; margin-bottom: 4px; font-size: 14px; }
-        .theory-step p { font-size: 14px; color: #334155; line-height: 1.5; }
+        /* IMAGE GRAPHIC BOX */
+        .graphic-box { background: #f0f9ff; border: 1px dashed #bae6fd; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 16px; }
+        .graphic-box i { font-size: 48px; color: #0284c7; margin-bottom: 8px; }
+        .graphic-box p { font-size: 13px; color: #0369a1; font-weight: 600; }
 
-        /* QUIZ COMPONENTS */
+        /* QUIZ */
         .quiz-option {
-            width: 100%;
-            padding: 14px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            background: white;
-            margin-bottom: 10px;
-            text-align: left;
-            font-weight: 500;
-            font-size: 14px;
-            color: #334155;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: block;
+            width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0;
+            background: white; margin-bottom: 10px; text-align: left; font-weight: 500; font-size: 14px;
+            color: #334155; cursor: pointer; transition: all 0.2s; display: block;
         }
         .quiz-option:hover:not(:disabled) { border-color: #cbd5e1; background: #f8fafc; }
         
         .btn-action {
-            margin-top: 14px;
-            background: var(--accent-blue);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: inline-block;
+            margin-top: 14px; background: var(--accent-blue); color: white; border: none;
+            padding: 12px 24px; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; width: 100%;
         }
         .btn-action:hover { background: var(--accent-hover); }
-
-        #empty-message { text-align: center; padding: 40px 20px; }
-        #empty-message h3 { justify-content: center; margin-bottom: 8px; }
-        #empty-message p { color: #64748b; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <!-- SIDEBAR -->
+    <div id="landing-screen">
+        <i class="fa-solid fa-landmark" style="font-size: 4rem; color: #38bdf8; margin-bottom: 24px;"></i>
+        <h1>Ακαδημία Αρχαίων Ελληνικών</h1>
+        <p>Καλώς ήρθατε στην ψηφιακή πλατφόρμα εκμάθησης. Μετατρέψτε τη θεωρία σε παιχνίδι, μαζέψτε πόντους XP και γίνετε οι ήρωες της γλώσσας μας!</p>
+        <button class="btn-start" onclick="startApp()">
+            Ξεκίνα το Ταξίδι <i class="fa-solid fa-arrow-right"></i>
+        </button>
+    </div>
+
     <div id="sidebar">
-        <div class="sidebar-header">
-            🏛️ Αρχική
+        <div class="sidebar-header" onclick="goHome()">
+            <i class="fa-solid fa-house"></i> Αρχική Οθόνη
         </div>
         <div class="sidebar-menu">
-            <div class="menu-category">ΜΕΡΟΣ Α' — Εισαγωγή</div>
-            <div class="chapter-header">
-                <span>Κεφάλαιο 1 — Η Αρχαία Ελληνική</span>
-                <span>▼</span>
+            <div class="menu-category">Μαθήματα Α' Γυμνασίου</div>
+            
+            <div class="chapter-header active" id="menu-1" onclick="changeSection(1)">
+                <i class="fa-solid fa-book-open"></i>
+                <span>Ενότητα 1η</span>
             </div>
-            <div class="sub-item active" onclick="changeLesson('1.1')">
-                <span>1.1 Η Καταγωγή και η Εξέλιξη</span>
+
+            <div class="chapter-header" id="menu-2" onclick="changeSection(2)">
+                <i class="fa-solid fa-lock"></i>
+                <span>Ενότητα 2η</span>
             </div>
-            <div class="sub-item" onclick="changeLesson('1.2')">
-                <span>1.2 Η Δομή & το Αλφάβητο</span>
+            
+            <div class="chapter-header" id="menu-3" onclick="changeSection(3)">
+                <i class="fa-solid fa-lock"></i>
+                <span>Ενότητα 3η</span>
             </div>
         </div>
     </div>
 
-    <!-- MAIN WRAPPER -->
     <div id="main-wrapper">
-        <!-- TOPBAR -->
         <div class="topbar">
-            <div class="topbar-title">📜 Ακαδημία Ηρώων των Αρχαίων Ελληνικών</div>
-            <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid #e2e8f0; background: white; font-weight: 500; font-size: 13px;">Δες τα μαθήματα</button>
+            <div class="topbar-title"><i class="fa-solid fa-scroll" style="color: #0284c7;"></i> Ακαδημία Ηρώων των Αρχαίων Ελληνικών</div>
+            <div style="font-size: 13px; color: #64748b; font-weight: 500;">Έκδοση 2.0</div>
         </div>
 
-        <!-- CONTENT -->
         <div class="content-padding" id="dynamic-content">
-            <!-- Content will be injected dynamically by JavaScript below -->
-        </div>
+            </div>
     </div>
 
     <script>
-        // COURSE DATA
-        const courseData = {
-            '1.1': {
-                title: "Η Καταγωγή και η Εξέλιξη",
-                desc: "Εξερευνούμε τις ρίζες της γλώσσας που μιλούσαν οι αρχαίοι ημών πρόγονοι.",
-                theory: [
-                    { title: "1. Η Καταγωγή", text: "Η Αρχαία Ελληνική προέρχεται από την Ινδοευρωπαϊκή γλωσσική οικογένεια." },
-                    { title: "2. Οι Διάλεκτοι", text: "Χωριζόταν σε διαλέκτους, με κυριότερη την Αττική διάλεκτο που έγινε η βάση για την Κοινή." },
-                    { title: "3. Η Διάδοση", text: "Ο Μέγας Αλέξανδρος μετέφερε την ελληνική γλώσσα σε όλο τον τότε γνωστό κόσμο." }
+        // ΔΕΔΟΜΕΝΑ ΥΛΙΚΟΥ ΑΠΟ ΤΟ ΦΥΛΛΑΔΙΟ (Εικόνα 1)
+        const sectionsData = {
+            1: {
+                title: "Ενότητα 1η: Το ταξίδι των λέξεων στο χρόνο",
+                desc: "Μελέτη των αρχαίων φράσεων που χρησιμοποιούμε αναλλοίωτες μέχρι και σήμερα στην καθημερινότητά μας.",
+                vocab: [
+                    { ancient: "νοῦς ὑγιὴς ἐν σώματι ὑγιεῖ", modern: "η πνευματική υγεία συνδέεται με τη σωματική" },
+                    { ancient: "εὖ ἀγωνίζεσθαι", modern: "το να αγωνίζεται κανείς όπως πρέπει (έντιμα)" },
+                    { ancient: "πὺξ λὰξ", modern: "με γροθιές και με κλοτσιές" },
+                    { ancient: "κύκνειον ᾆσμα", modern: "το τελευταίο έργο κάποιου δημιουργού" },
+                    { ancient: "δημοσίᾳ δαπάνη", modern: "με έξοδα του κράτους" },
+                    { ancient: "τὰ παιδία παίζει", modern: "τα παιδιά παίζουν" },
+                    { ancient: "γνῶθι σαυτόν", modern: "γνώριζε τον εαυτό σου" },
+                    { ancient: "ἔπεα πτερόεντα", modern: "λόγια που πετούν (λόγια του αέρα)" },
+                    { ancient: "τὸ δὶς ἐξαμαρτεῖν οὐκ ἀνδρὸς σοφοῦ", modern: "το να κάνεις δυο φορές το ίδιο λάθος δεν χαρακτηρίζει σοφό άνθρωπο" },
+                    { ancient: "εὕρηκα! εὕρηκα!", modern: "βρήκα, βρήκα" },
+                    { ancient: "εὖ ζῆν", modern: "ζωή με ηθικές και πνευματικές αξίες" },
+                    { ancient: "μολὼν λαβέ", modern: "έλα να τα πάρεις (τα όπλα)" },
+                    { ancient: "μὴ μου ἅπτου", modern: "μη μ' αγγίζεις" },
+                    { ancient: "καινὰ δαιμόνια", modern: "νέες ιδέες / αντιλήψεις" },
+                    { ancient: "στήλη ἅλατος", modern: "στήλη από αλάτι, ακίνητος από την έκπληξη" },
+                    { ancient: "ἄρον ἄρον", modern: "πολύ βιαστικά" },
+                    { ancient: "ἀπὸ μηχανῆς θεὸς", modern: "αυτό που γίνεται απρόσμενα και δίνει λύση" },
+                    { ancient: "γόρδιος δεσμός", modern: "ο δεσμός στο Γόρδιο, κάθε πρόβλημα που λύνεται δύσκολα" }
                 ],
                 questions: [
-                    { q: "Ποια διάλεκτος έγινε η βάση για την μετέπειτα Κοινή Ελληνική;", correct: "Η Αττική", wrong: ["Η Ιωνική", "Η Δωρική", "Η Αιολική"] },
-                    { q: "Από ποια γλωσσική οικογένεια προέρχεται η Αρχαία Ελληνική;", correct: "Την Ινδοευρωπαϊκή", wrong: ["Την Ασιατική", "Την Αφρικανική"] }
+                    { q: "Τι σημαίνει η αρχαία φράση 'μολὼν λαβέ';", correct: "έλα να τα πάρεις (τα όπλα)", wrong: ["μη μ' αγγίζεις", "πολύ βιαστικά", "βρήκα, βρήκα"] },
+                    { q: "Όταν κάποιος ενεργεί πολύ βιαστικά, ποια φράση ταιριάζει;", correct: "ἄρον ἄρον", wrong: ["πὺξ λὰξ", "εὖ ζῆν", "κύκνειον ᾆσμα"] },
+                    { q: "Τι σημαίνει η φράση 'νοῦς ὑγιὴς ἐν σώματι ὑγιεῖ';", correct: "η πνευματική υγεία συνδέεται με τη σωματική", wrong: ["τα παιδιά παίζουν", "με έξοδα του κράτους"] },
+                    { q: "Ποια φράση δηλώνει το τελευταίο έργο ενός δημιουργού;", correct: "κύκνειον ᾆσμα", wrong: ["καινὰ δαιμόνια", "γόρδιος δεσμός"] }
                 ]
             }
         };
 
-        // GAME STATE
-        let activeLesson = '1.1';
+        // STATUS ΕΦΑΡΜΟΓΗΣ
+        let activeSection = 1;
         let currentQuestionIdx = 0;
         let score = 0;
         let streak = 0;
@@ -274,37 +257,40 @@
         let selectedOption = null;
         let shuffledOptions = [];
 
-        function changeLesson(id) {
-            activeLesson = id;
+        function startApp() {
+            document.getElementById('landing-screen').style.display = 'none';
+            changeSection(1);
+        }
+
+        function goHome() {
+            document.getElementById('landing-screen').style.display = 'flex';
+        }
+
+        function changeSection(id) {
+            activeSection = id;
             currentQuestionIdx = 0;
             answered = false;
             selectedOption = null;
-            
-            // Update sidebar active class
-            document.querySelectorAll('.sub-item').forEach((item, index) => {
-                if((id === '1.1' && index === 0) || (id === '1.2' && index === 1)) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
-            });
 
-            if (courseData[id]) {
-                shuffleCurrentOptions();
-            }
+            // Update μενού κλάσεων
+            document.querySelectorAll('.chapter-header').forEach(el => el.classList.remove('active'));
+            const activeMenu = document.getElementById(`menu-${id}`);
+            if (activeMenu) activeMenu.classList.add('active');
+
+            shuffleCurrentOptions();
             render();
         }
 
         function shuffleCurrentOptions() {
-            const lesson = courseData[activeLesson];
-            if (!lesson || !lesson.questions[currentQuestionIdx]) return;
-            const q = lesson.questions[currentQuestionIdx];
+            const data = sectionsData[activeSection];
+            if (!data || !data.questions[currentQuestionIdx]) return;
+            const q = data.questions[currentQuestionIdx];
             shuffledOptions = [q.correct, ...q.wrong].sort(() => Math.random() - 0.5);
         }
 
         function handleAnswer(opt) {
             if (answered) return;
-            const q = courseData[activeLesson].questions[currentQuestionIdx];
+            const q = sectionsData[activeSection].questions[currentQuestionIdx];
             selectedOption = opt;
             answered = true;
 
@@ -327,21 +313,34 @@
 
         function render() {
             const container = document.getElementById('dynamic-content');
-            
-            if (!courseData[activeLesson]) {
+            const data = sectionsData[activeSection];
+
+            if (!data) {
                 container.innerHTML = `
-                    <div class="card" id="empty-message">
-                        <h3>📚 Ενότητα ${activeLesson}</h3>
-                        <p>Το περιεχόμενο αυτής της ενότητας θα προστεθεί σύντομα!</p>
+                    <div class="card" style="text-align: center; padding: 40px;">
+                        <i class="fa-solid fa-laptop-code" style="font-size: 50px; color: #cbd5e1; margin-bottom: 16px;"></i>
+                        <h3>Ενότητα ${activeSection}η</h3>
+                        <p style="color: #64748b; margin-top: 8px;">Το υλικό αυτής της ενότητας ετοιμάζεται. Ανεβάστε το αντίστοιχο φυλλάδιο για να το προσθέσουμε!</p>
                     </div>
                 `;
                 return;
             }
 
-            const lesson = courseData[activeLesson];
-            const currentQ = lesson.questions[currentQuestionIdx];
+            // Χτίσιμο πίνακα θεωρίας
+            let tableRows = '';
+            data.vocab.forEach(item => {
+                tableRows += `
+                    <tr>
+                        <td class="ancient">${item.ancient}</td>
+                        <td class="modern">${item.modern}</td>
+                    </tr>
+                `;
+            });
 
+            // Χτίσιμο Κουίζ
+            const currentQ = data.questions[currentQuestionIdx];
             let quizHTML = '';
+
             if (currentQ) {
                 let optionsHTML = '';
                 shuffledOptions.forEach(opt => {
@@ -354,49 +353,40 @@
                         }
                     }
                     optionsHTML += `
-                        <button class="quiz-option" style="${style}" onclick="handleAnswer('${opt.replace(/'/g, "\'")}')" ${answered ? 'disabled' : ''}>
+                        <button class="quiz-option" style="${style}" onclick="handleAnswer('${opt.replace(/'/g, "\\'")}')" ${answered ? 'disabled' : ''}>
                             ${opt}
                         </button>
                     `;
                 });
 
                 quizHTML = `
-                    <p style="font-weight: 600; margin-bottom: 16px; fontSize: 16px; color: #1e293b;">${currentQ.q}</p>
-                    <div class="options-list">${optionsHTML}</div>
-                    ${answered ? `<button class="btn-action" onclick="nextQuestion()">Επόμενη ερώτηση</button>` : ''}
+                    <p style="font-weight: 600; margin-bottom: 16px; color: #1e293b;">${currentQ.q}</p>
+                    <div>${optionsHTML}</div>
+                    ${answered ? `<button class="btn-action" onclick="nextQuestion()">Επόμενη Ερώτηση <i class="fa-solid fa-chevron-right"></i></button>` : ''}
                 `;
             } else {
                 quizHTML = `
-                    <div style="text-align:center; padding:20px;">
-                        <p style="font-size:22px; margin-bottom: 8px;">🎉 Συγχαρητήρια!</p>
-                        <p style="color: #64748b;">Ολοκληρώσατε την αποστολή αυτής της ενότητας!</p>
+                    <div style="text-align:center; padding: 20px 0;">
+                        <i class="fa-solid fa-trophy" style="font-size: 40px; color: #eab308; margin-bottom: 12px;"></i>
+                        <p style="font-size:18px; font-weight: bold; color: #1e293b;">Εξαιρετική Δουλειά!</p>
+                        <p style="color: #64748b; font-size: 13px; margin-top: 4px;">Απαντήσατε σε όλες τις ερωτήσεις αυτής της ενότητας.</p>
                     </div>
                 `;
             }
 
-            let theoryHTML = '';
-            lesson.theory.forEach(step => {
-                theoryHTML += `
-                    <div class="theory-step">
-                        <strong>${step.title}</strong>
-                        <p>${step.text}</p>
-                    </div>
-                `;
-            });
-
             container.innerHTML = `
                 <div class="lessonHero">
                     <div>
-                        <h1>${lesson.title}</h1>
-                        <p>${lesson.desc}</p>
+                        <h1>${data.title}</h1>
+                        <p>${data.desc}</p>
                     </div>
                     <div class="bossPanel">
                         <div class="stat-item">
-                            <span id="xp-counter">${score}</span>
+                            <span>${score}</span>
                             <label>Πόντοι XP</label>
                         </div>
                         <div class="stat-item">
-                            <span id="streak-counter">${streak} 🔥</span>
+                            <span>${streak} 🔥</span>
                             <label>Σερί</label>
                         </div>
                     </div>
@@ -404,20 +394,33 @@
 
                 <div class="twoCol">
                     <div class="card">
-                        <h3>🛡️ Θυμόμαστε — Μαθαίνουμε</h3>
-                        <div class="theory-list">${theoryHTML}</div>
+                        <h3><i class="fa-solid fa-gavel" style="color: #0284c7;"></i> Λεξικό Επιβίωσης (Κείμενο & Μετάφραση)</h3>
+                        
+                        <div class="graphic-box">
+                            <i class="fa-solid fa-monument"></i>
+                            <p>Η εξέλιξη της γλώσσας: 40 αιώνες ζωντανής ιστορίας στο πιάτο σου!</p>
+                        </div>
+
+                        <table class="vocab-table">
+                            <thead>
+                                <tr>
+                                    <th>ΚΕΙΜΕΝΟ (Αρχαία)</th>
+                                    <th>ΜΕΤΑΦΡΑΣΗ (Νέα Ελληνικά)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="card">
-                        <h3>⚡ Κουίζ Αστραπή</h3>
-                        <div class="quiz-body">${quizHTML}</div>
+
+                    <div class="card" style="position: sticky; top: 20px;">
+                        <h3><i class="fa-solid fa-bolt" style="color: #eab308;"></i> Δοκιμασία Ηρώων</h3>
+                        <div>${quizHTML}</div>
                     </div>
                 </div>
             `;
         }
-
-        // Initial launch
-        shuffleCurrentOptions();
-        render();
     </script>
 </body>
 </html>
