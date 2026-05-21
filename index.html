@@ -1,13 +1,423 @@
 <!DOCTYPE html>
 <html lang="el">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ακαδημία Ηρώων των Αρχαίων Ελληνικών</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #eff6ff, #f8fafc, #ecfeff);
+            --sidebar-bg: #1a2536;
+            --text-main: #0f172a;
+            --accent-blue: #0056b3;
+            --accent-hover: #004085;
+            --card-bg: #ffffff;
+            --border-color: rgba(148,163,184,0.15);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            background: var(--bg-gradient);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        #sidebar {
+            width: 320px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            border-right: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            background-color: rgba(0,0,0,0.2);
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .sidebar-menu {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .menu-category {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #7f8c8d;
+            margin: 16px 0 8px 8px;
+        }
+
+        .chapter-header {
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            margin-bottom: 4px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .sub-item {
+            padding: 10px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+            margin-left: 12px;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+            color: #cbd5e1;
+            transition: 0.2s;
+        }
+
+        .sub-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .sub-item.active { background: var(--accent-blue); color: white; font-weight: bold; }
+
+        /* MAIN CONTENT AREA */
+        #main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .topbar {
+            background: white;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .topbar-title { font-weight: bold; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+
+        .content-padding {
+            padding: 32px;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* HERO & STATS */
+        .lessonHero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+            background: transparent;
+        }
+        .lessonHero h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+        .lessonHero p { color: #64748b; font-size: 15px; }
+
+        .bossPanel {
+            background: #111827;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            display: flex;
+            gap: 24px;
+            justify-content: space-around;
+            min-width: 250px;
+            align-items: center;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .stat-item { text-align: center; }
+        .stat-item span { display: block; font-size: 22px; font-weight: bold; color: #ffffff; }
+        .stat-item label { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* TWO COLUMN LAYOUT */
+        .twoCol {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+            border: 1px solid #e2e8f0;
+        }
+        .card h3 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #1e293b; }
+
+        /* THEORY COMPONENTS */
+        .theory-step {
+            background: #f8fafc;
+            padding: 14px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .theory-step strong { color: var(--accent-blue); display: block; margin-bottom: 4px; font-size: 14px; }
+        .theory-step p { font-size: 14px; color: #334155; line-height: 1.5; }
+
+        /* QUIZ COMPONENTS */
+        .quiz-option {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            margin-bottom: 10px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 14px;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: block;
+        }
+        .quiz-option:hover:not(:disabled) { border-color: #cbd5e1; background: #f8fafc; }
+        
+        .btn-action {
+            margin-top: 14px;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: inline-block;
+        }
+        .btn-action:hover { background: var(--accent-hover); }
+
+        #empty-message { text-align: center; padding: 40px 20px; }
+        #empty-message h3 { justify-content: center; margin-bottom: 8px; }
+        #empty-message p { color: #64748b; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            🏛️ Αρχική
+        </div>
+        <div class="sidebar-menu">
+            <div class="menu-category">ΜΕΡΟΣ Α' — Εισαγωγή</div>
+            <div class="chapter-header">
+                <span>Κεφάλαιο 1 — Η Αρχαία Ελληνική</span>
+                <span>▼</span>
+            </div>
+            <div class="sub-item active" onclick="changeLesson('1.1')">
+                <span>1.1 Η Καταγωγή και η Εξέλιξη</span>
+            </div>
+            <div class="sub-item" onclick="changeLesson('1.2')">
+                <span>1.2 Η Δομή & το Αλφάβητο</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN WRAPPER -->
+    <div id="main-wrapper">
+        <!-- TOPBAR -->
+        <div class="topbar">
+            <div class="topbar-title">📜 Ακαδημία Ηρώων των Αρχαίων Ελληνικών</div>
+            <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid #e2e8f0; background: white; font-weight: 500; font-size: 13px;">Δες τα μαθήματα</button>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="content-padding" id="dynamic-content">
+            <!-- Content will be injected dynamically by JavaScript below -->
+        </div>
+    </div>
+
+    <script>
+        // COURSE DATA
+        const courseData = {
+            '1.1': {
+                title: "Η Καταγωγή και η Εξέλιξη",
+                desc: "Εξερευνούμε τις ρίζες της γλώσσας που μιλούσαν οι αρχαίοι ημών πρόγονοι.",
+                theory: [
+                    { title: "1. Η Καταγωγή", text: "Η Αρχαία Ελληνική προέρχεται από την Ινδοευρωπαϊκή γλωσσική οικογένεια." },
+                    { title: "2. Οι Διάλεκτοι", text: "Χωριζόταν σε διαλέκτους, με κυριότερη την Αττική διάλεκτο που έγινε η βάση για την Κοινή." },
+                    { title: "3. Η Διάδοση", text: "Ο Μέγας Αλέξανδρος μετέφερε την ελληνική γλώσσα σε όλο τον τότε γνωστό κόσμο." }
+                ],
+                questions: [
+                    { q: "Ποια διάλεκτος έγινε η βάση για την μετέπειτα Κοινή Ελληνική;", correct: "Η Αττική", wrong: ["Η Ιωνική", "Η Δωρική", "Η Αιολική"] },
+                    { q: "Από ποια γλωσσική οικογένεια προέρχεται η Αρχαία Ελληνική;", correct: "Την Ινδοευρωπαϊκή", wrong: ["Την Ασιατική", "Την Αφρικανική"] }
+                ]
+            }
+        };
+
+        // GAME STATE
+        let activeLesson = '1.1';
+        let currentQuestionIdx = 0;
+        let score = 0;
+        let streak = 0;
+        let answered = false;
+        let selectedOption = null;
+        let shuffledOptions = [];
+
+        function changeLesson(id) {
+            activeLesson = id;
+            currentQuestionIdx = 0;
+            answered = false;
+            selectedOption = null;
+            
+            // Update sidebar active class
+            document.querySelectorAll('.sub-item').forEach((item, index) => {
+                if((id === '1.1' && index === 0) || (id === '1.2' && index === 1)) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            if (courseData[id]) {
+                shuffleCurrentOptions();
+            }
+            render();
+        }
+
+        function shuffleCurrentOptions() {
+            const lesson = courseData[activeLesson];
+            if (!lesson || !lesson.questions[currentQuestionIdx]) return;
+            const q = lesson.questions[currentQuestionIdx];
+            shuffledOptions = [q.correct, ...q.wrong].sort(() => Math.random() - 0.5);
+        }
+
+        function handleAnswer(opt) {
+            if (answered) return;
+            const q = courseData[activeLesson].questions[currentQuestionIdx];
+            selectedOption = opt;
+            answered = true;
+
+            if (opt === q.correct) {
+                score += 15;
+                streak += 1;
+            } else {
+                streak = 0;
+            }
+            render();
+        }
+
+        function nextQuestion() {
+            currentQuestionIdx++;
+            answered = false;
+            selectedOption = null;
+            shuffleCurrentOptions();
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('dynamic-content');
+            
+            if (!courseData[activeLesson]) {
+                container.innerHTML = `
+                    <div class="card" id="empty-message">
+                        <h3>📚 Ενότητα ${activeLesson}</h3>
+                        <p>Το περιεχόμενο αυτής της ενότητας θα προστεθεί σύντομα!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const lesson = courseData[activeLesson];
+            const currentQ = lesson.questions[currentQuestionIdx];
+
+            let quizHTML = '';
+            if (currentQ) {
+                let optionsHTML = '';
+                shuffledOptions.forEach(opt => {
+                    let style = '';
+                    if (answered) {
+                        if (opt === currentQ.correct) {
+                            style = 'background: #d1fae5; border-color: #10b981; color: #065f46; font-weight: bold;';
+                        } else if (opt === selectedOption) {
+                            style = 'background: #fee2e2; border-color: #ef4444; color: #991b1b;';
+                        }
+                    }
+                    optionsHTML += `
+                        <button class="quiz-option" style="${style}" onclick="handleAnswer('${opt.replace(/'/g, "\'")}')" ${answered ? 'disabled' : ''}>
+                            ${opt}
+                        </button>
+                    `;
+                });
+
+                quizHTML = `
+                    <p style="font-weight: 600; margin-bottom: 16px; fontSize: 16px; color: #1e293b;">${currentQ.q}</p>
+                    <div class="options-list">${optionsHTML}</div>
+                    ${answered ? `<button class="btn-action" onclick="nextQuestion()">Επόμενη ερώτηση</button>` : ''}
+                `;
+            } else {
+                quizHTML = `
+                    <div style="text-align:center; padding:20px;">
+                        <p style="font-size:22px; margin-bottom: 8px;">🎉 Συγχαρητήρια!</p>
+                        <p style="color: #64748b;">Ολοκληρώσατε την αποστολή αυτής της ενότητας!</p>
+                    </div>
+                `;
+            }
+
+            let theoryHTML = '';
+            lesson.theory.forEach(step => {
+                theoryHTML += `
+                    <div class="theory-step">
+                        <strong>${step.title}</strong>
+                        <p>${step.text}</p>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="lessonHero">
+                    <div>
+                        <h1>${lesson.title}</h1>
+                        <p>${lesson.desc}</p>
+                    </div>
+                    <div class="bossPanel">
+                        <div class="stat-item">
+                            <span id="xp-counter">${score}</span>
+                            <label>Πόντοι XP</label>
+                        </div>
+                        <div class="stat-item">
+                            <span id="streak-counter">${streak} 🔥</span>
+                            <label>Σερί</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="twoCol">
+                    <div class="card">
+                        <h3>🛡️ Θυμόμαστε — Μαθαίνουμε</h3>
+                        <div class="theory-list">${theoryHTML}</div>
+                    </div>
+                    <div class="card">
+                        <h3>⚡ Κουίζ Αστραπή</h3>
+                        <div class="quiz-body">${quizHTML}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initial launch
+        shuffleCurrentOptions();
+        render();
+    </script>
+</body>
 </html>
