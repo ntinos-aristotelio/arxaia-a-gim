@@ -11,3 +11,13 @@
 @media(max-width:980px){.app-shell{grid-template-columns:1fr}.codex-panel{position:relative;top:0}.map{grid-template-columns:repeat(2,1fr)}.micro-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.hero{padding:14px}.intro-card{padding:26px}.map{grid-template-columns:1fr}.lesson-head{display:block}.app-shell{padding:12px}.world{padding:16px}}
 .mission-note{margin:14px 0 16px;padding:12px 14px;border-radius:16px;background:rgba(199,163,90,.16);border:1px solid rgba(199,163,90,.55);font-weight:800;color:#4d371c}
+
+
+/* Build 1.2 additions */
+.teacher-toggle{margin-top:16px;width:100%;background:linear-gradient(135deg,#4d371c,#8b5e34);font-size:14px;padding:12px 14px}
+.teacher-toggle.active{background:linear-gradient(135deg,#3d7c55,#285c3d)}
+.unit-focus{margin:14px 0;padding:14px 16px;border-radius:18px;background:linear-gradient(135deg,rgba(23,50,77,.12),rgba(199,163,90,.16));border:1px solid rgba(23,50,77,.25);font-weight:800;line-height:1.5}
+.phase-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}.phase-pill{border:1px solid #c7a35a;background:#fff8e8;border-radius:999px;padding:8px 11px;font-size:13px;font-weight:800;color:#4d371c}
+.table-fill{display:grid;grid-template-columns:repeat(2,minmax(190px,1fr));gap:10px;margin:14px 0}.table-fill label{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.72);border:1px solid #d8bd77;border-radius:16px;padding:10px}.table-fill label span{min-width:120px;font-weight:800;color:#4d371c}.table-fill input{min-width:0;width:100%;padding:10px 12px;border-radius:12px}.field-ok{border-color:#3d7c55!important;background:#e8f5e8!important}.field-bad{border-color:#9b2f2f!important;background:#f8e1df!important}
+.boss{border:2px solid #8b5e34;background:linear-gradient(180deg,#fffaf0,#ead7a8)}.boss-meter{height:16px;border-radius:999px;background:#ddc68d;overflow:hidden;margin:12px 0}.boss-meter span{display:block;height:100%;background:linear-gradient(90deg,#9b2f2f,#c7a35a);transition:.35s}.duel-stage{background:rgba(255,255,255,.55);border-radius:18px;padding:14px;border:1px solid rgba(139,94,52,.32)}.round-label{display:inline-block;margin-bottom:8px;background:#172033;color:#f8e7b8;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:800}.duel-victory{font-weight:900;color:#3d7c55;font-size:18px}
+@media(max-width:720px){.table-fill{grid-template-columns:1fr}.table-fill label{display:block}.table-fill label span{display:block;margin-bottom:6px}}
