@@ -1,5 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
-const stateKey = 'akadimiaArxaionProgressV1_3';
+const stateKey = 'akadimiaArxaionProgressV1_4';
 let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
 state = Object.assign({name:'', xp:0, coins:0, streak:0, completed:{}, badges:[], answers:{}, teacherMode:false}, state);
 
@@ -32,5 +32,5 @@ function bindExercises(u){ document.querySelectorAll('.exercise').forEach((card,
   if(ex.type==='tablefill'){ card.querySelector('.checkTable').onclick=()=>{ let ok=true; ex.fields.forEach((f,i)=>{ const input=card.querySelector(`[data-field="${i}"]`); const accepted=Array.isArray(f.answer)?f.answer:[f.answer]; const good=accepted.some(a=>normalize(input.value)===normalize(a)); input.classList.toggle('field-ok', good); input.classList.toggle('field-bad', !good); if(!good) ok=false; }); card.querySelector('.feedback').textContent=ok?(ex.feedback||'Ο πίνακας συμπληρώθηκε σωστά.'):'Κάποιοι τύποι θέλουν ξανά έλεγχο. Μπορείς να γράψεις και χωρίς τόνους.'; ok?award(id,45):miss(); }; }
   if(ex.type==='duel'){ let round=0; let hp=ex.rounds.length; const stage=card.querySelector('.duel-stage'); const meter=card.querySelector('.boss-meter span'); function drawRound(){ if(round>=ex.rounds.length){ stage.innerHTML='<div class="duel-victory">Ο Φύλακας υποχώρησε. Ο χρησμός άνοιξε.</div>'; card.querySelector('.feedback').textContent='Νίκη στο mini boss.'; award(id, ex.reward||60); return; } const r=ex.rounds[round]; stage.innerHTML=`<div class="round-label">Γύρος ${round+1}/${ex.rounds.length}</div><p><strong>${r.q}</strong></p><div class="options">${r.options.map((o,i)=>`<button class="option duelOption" data-a="${i}">${o}</button>`).join('')}</div>`; stage.querySelectorAll('.duelOption').forEach(btn=>btn.onclick=()=>{ const r=ex.rounds[round]; const ok=+btn.dataset.a===r.answer; btn.classList.add(ok?'correct':'wrong'); if(ok){ hp--; round++; meter.style.width=(hp/ex.rounds.length*100)+'%'; card.querySelector('.feedback').textContent=r.feedback; setTimeout(drawRound,650); } else { card.querySelector('.feedback').textContent='Ο Φύλακας κρατά την ασπίδα. Ξανασκέψου.'; miss(); } }); } card.querySelector('.startDuel').onclick=drawRound; }
 }); }
-function normalize(s){ return (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ς/g,'σ'); }
+function normalize(s){ return (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ς/g,'σ').replace(/[.,;··'’`῾᾿\-]/g,' ').replace(/\s+/g,' ').trim(); }
 function shuffle(arr){ return arr.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
