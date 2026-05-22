@@ -1,11 +1,11 @@
 const $ = (sel) => document.querySelector(sel);
-const stateKey = 'akadimiaArxaionProgressV1_6';
+const stateKey = 'akadimiaArxaionProgressV1_7';
 let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
 state = Object.assign({name:'', xp:0, coins:0, streak:0, completed:{}, badges:[], answers:{}, teacherMode:false}, state);
 
 function save(){ localStorage.setItem(stateKey, JSON.stringify(state)); }
 function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1900); }
-function rank(){ if(state.xp>=5200) return 'Άρχων της Ακαδημίας'; if(state.xp>=3800) return 'Φιλόσοφος της Ακαδημίας'; if(state.xp>=2500) return 'Ρήτωρ'; if(state.xp>=1400) return 'Φύλακας των Λέξεων'; if(state.xp>=500) return 'Μαθητευόμενος Γραμματιστής'; return 'Νέος Μαθητής'; }
+function rank(){ if(state.xp>=3400) return 'Φιλόσοφος της Ακαδημίας'; if(state.xp>=2300) return 'Ρήτωρ'; if(state.xp>=1400) return 'Φύλακας των Λέξεων'; if(state.xp>=600) return 'Μαθητευόμενος Γραμματιστής'; return 'Νέος Μαθητής'; }
 function addBadge(b){ if(!state.badges.includes(b)){ state.badges.push(b); toast('Νέο σήμα: '+b); } }
 function award(id, points=20){ if(state.answers[id]) return false; state.answers[id]=true; state.xp += points; state.coins += Math.ceil(points/10); state.streak += 1; if(state.streak===3) addBadge('Σερί 3 σωστών'); if(state.xp>=100) addBadge('Πρώτα 100 XP'); save(); renderStats(); return true; }
 function miss(){ state.streak=0; save(); renderStats(); }
