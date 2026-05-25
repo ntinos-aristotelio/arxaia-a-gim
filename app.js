@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_3';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_3';
+const stateKey = 'akadimiaArxaionProgressV2_4';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_4';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -20,6 +20,7 @@ const defaultState = {
   showAnswers: {},
   showReport: {},
   unitNotes: {},
+  bookmarks: {},
   teacherPrefs: {}
 };
 
@@ -39,6 +40,7 @@ state.exerciseMode = state.exerciseMode || {};
 state.showAnswers = state.showAnswers || {};
 state.showReport = state.showReport || {};
 state.unitNotes = state.unitNotes || {};
+state.bookmarks = state.bookmarks || {};
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
@@ -368,6 +370,7 @@ function openUnit(i, rerenderMap = true) {
   const prototype = u.prototypeNote ? `<div class="unit-focus">🧭 ${escapeHTML(u.prototypeNote)}</div>` : '';
   const phases = u.phases ? `<div class="phase-strip">${u.phases.map((p, n) => `<span class="phase-pill">${n + 1}. ${escapeHTML(p)}</span>`).join('')}</div>` : '';
   const noteValue = escapeHTML(state.unitNotes[u.id] || '');
+  const bookmarked = !!state.bookmarks[u.id];
 
   $('#lessonView').innerHTML = `
     <article class="lesson-card">
@@ -411,6 +414,7 @@ function openUnit(i, rerenderMap = true) {
         <button id="showBossBtn" class="${mode === 'boss' ? 'active-tool' : ''}">Μόνο boss</button>
         <button id="showAllBtn" class="${mode === 'all' ? 'active-tool' : ''}">Όλες</button>
         <button id="printUnitBtn" class="ghost-tool">Εκτύπωση φύλλου</button>
+        <button id="bookmarkUnitBtn" class="ghost-tool ${bookmarked ? 'active-tool' : ''}">${bookmarked ? '★ Σελιδοδείκτης' : '☆ Σελιδοδείκτης'}</button>
         ${state.teacherMode ? `<button id="toggleReportBtn" class="ghost-tool">${showReport ? 'Κλείσιμο αναφοράς' : 'Αναφορά καθηγητή'}</button><button id="toggleAnswersBtn" class="ghost-tool">${showAnswers ? 'Απόκρυψη απαντήσεων' : 'Σωστές απαντήσεις'}</button>` : ''}
       </div>
 
@@ -432,6 +436,7 @@ function openUnit(i, rerenderMap = true) {
   $('#showBossBtn').addEventListener('click', () => setExerciseMode(u.id, 'boss'));
   $('#showAllBtn').addEventListener('click', () => setExerciseMode(u.id, 'all'));
   $('#printUnitBtn').addEventListener('click', () => printUnit(u.id));
+  $('#bookmarkUnitBtn').addEventListener('click', () => toggleBookmark(u.id));
   const reportBtn = $('#toggleReportBtn');
   if (reportBtn) reportBtn.addEventListener('click', () => {
     if (!ensureTeacherAccess()) return;
@@ -1240,7 +1245,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.2',
+    build: '2.4',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1252,7 +1257,8 @@ function exportProgress() {
     badges: state.badges,
     mistakes: state.mistakes,
     diagnostics: state.diagnosticHistory,
-    notes: state.unitNotes
+    notes: state.unitNotes,
+    bookmarks: state.bookmarks
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1311,6 +1317,208 @@ function readGeneratorForm() {
   const includeMicro = !!($('#testIncludeMicro') && $('#testIncludeMicro').checked);
   const includeSolved = !!($('#testIncludeSolved') && $('#testIncludeSolved').checked);
   return { unitIds, types, count, includeAnswers, includeMicro, includeSolved };
+}
+
+
+function completionLevel(percent) {
+  if (percent >= 90) return 'Άρχοντας της ενότητας';
+  if (percent >= 60) return 'Σταθερή πορεία';
+  if (percent >= 30) return 'Ξεκίνησε καλά';
+  return 'Χρειάζεται άνοιγμα';
+}
+
+function unlockedUnits() {
+  return ACADEMY_UNITS.map((u, i) => ({ u, i })).filter(item => isUnlocked(item.i));
+}
+
+function currentMission() {
+  const active = ACADEMY_UNITS.findIndex(u => u.id === state.activeUnitId);
+  if (active >= 0 && isUnlocked(active) && !state.completed[ACADEMY_UNITS[active].id]) return active;
+  const firstTodo = ACADEMY_UNITS.findIndex((u, i) => isUnlocked(i) && !state.completed[u.id]);
+  return firstTodo >= 0 ? firstTodo : firstPlayableIndex();
+}
+
+function profileTagStats() {
+  const stats = {};
+  ACADEMY_UNITS.forEach(u => {
+    const tags = learningTags(u);
+    const solved = unitSolvedCount(u);
+    const total = u.exercises.length || 1;
+    tags.forEach(tag => {
+      if (!stats[tag]) stats[tag] = { solved: 0, total: 0, mistakes: 0 };
+      stats[tag].solved += solved;
+      stats[tag].total += total;
+    });
+  });
+  Object.values(state.mistakes || {}).forEach(m => {
+    const u = ACADEMY_UNITS.find(unit => unit.id === m.unitId);
+    const tags = u ? learningTags(u) : ['Γενική επανάληψη'];
+    tags.forEach(tag => {
+      if (!stats[tag]) stats[tag] = { solved: 0, total: 0, mistakes: 0 };
+      stats[tag].mistakes += Number(m.count || 0);
+    });
+  });
+  return Object.entries(stats)
+    .map(([tag, value]) => ({ tag, ...value, percent: value.total ? Math.round(value.solved / value.total * 100) : 0 }))
+    .sort((a, b) => b.percent - a.percent || a.mistakes - b.mistakes);
+}
+
+function nextUnsolvedRef(unit) {
+  if (!unit) return null;
+  const unitIndex = ACADEMY_UNITS.findIndex(u => u.id === unit.id);
+  const idx = unit.exercises.findIndex((_, i) => !state.answers[exerciseId(unit.id, i)]);
+  if (idx < 0) return null;
+  return { u: unit, unitIndex, ex: unit.exercises[idx], idx, id: exerciseId(unit.id, idx) };
+}
+
+function topMistakeRefs(limit = 5) {
+  return Object.entries(state.mistakes || {})
+    .map(([id, item]) => ({ id, item, found: findExerciseById(id) }))
+    .filter(x => x.found.unit && x.found.ex)
+    .sort((a, b) => Number(b.item.count || 0) - Number(a.item.count || 0))
+    .slice(0, limit)
+    .map(x => ({ u: x.found.unit, unitIndex: ACADEMY_UNITS.findIndex(unit => unit.id === x.found.unit.id), ex: x.found.ex, idx: x.found.idx, id: x.id, count: x.item.count }));
+}
+
+function dailyGoals() {
+  const missionIndex = currentMission();
+  const mission = ACADEMY_UNITS[missionIndex];
+  const next = nextUnsolvedRef(mission);
+  const mistakes = topMistakeRefs(2);
+  const bossRef = mission ? allExerciseRefs().find(ref => ref.u.id === mission.id && ref.ex.type === 'duel' && !state.answers[ref.id]) : null;
+  const goals = [];
+  if (next) goals.push({ icon: '🎯', title: 'Συνέχισε την πορεία', body: `Λύσε την επόμενη άλυτη δοκιμασία στην περιοχή ${mission.place}.`, ref: next });
+  if (mistakes.length) goals.push({ icon: '🛠️', title: 'Διόρθωσε ένα δύσκολο σημείο', body: `Ξαναδούλεψε ${mistakes.length} δοκιμασία/ες που είχαν λάθος.`, ref: mistakes[0] });
+  if (bossRef) goals.push({ icon: '⚔️', title: 'Πλησίασε το mini boss', body: `Προετοιμάσου για το boss της ενότητας ${mission.title}.`, ref: bossRef });
+  if (!goals.length) goals.push({ icon: '🏛️', title: 'Μεγάλη επανάληψη', body: 'Έχεις εξαιρετική πορεία. Πήγαινε στις Πύλες της Ακαδημίας για τελικό έλεγχο.', ref: allExerciseRefs().find(ref => /Πύλες/.test(ref.u.place)) });
+  return goals.slice(0, 3);
+}
+
+function toggleBookmark(unitId) {
+  if (state.bookmarks[unitId]) {
+    delete state.bookmarks[unitId];
+    toast('Ο σελιδοδείκτης αφαιρέθηκε.');
+  } else {
+    state.bookmarks[unitId] = new Date().toISOString();
+    toast('Προστέθηκε σελιδοδείκτης στην περιοχή.');
+  }
+  save();
+  const idx = ACADEMY_UNITS.findIndex(u => u.id === unitId);
+  openUnit(idx, false);
+}
+
+function renderStudentProfile() {
+  featureStart();
+  const solved = solvedExercises();
+  const total = totalExercises();
+  const completedCount = Object.keys(state.completed).length;
+  const percent = coursePercent();
+  const missionIndex = currentMission();
+  const mission = ACADEMY_UNITS[missionIndex];
+  const goals = dailyGoals();
+  const tagStats = profileTagStats();
+  const strongTags = tagStats.slice(0, 4);
+  const weakTags = tagStats.filter(t => t.mistakes > 0 || t.percent < 45).sort((a, b) => b.mistakes - a.mistakes || a.percent - b.percent).slice(0, 4);
+  const bookmarkUnits = Object.keys(state.bookmarks || {}).map(id => ({ id, u: ACADEMY_UNITS.find(unit => unit.id === id) })).filter(x => x.u);
+  const completedUnits = ACADEMY_UNITS.filter(u => state.completed[u.id]);
+  const nextRef = nextUnsolvedRef(mission);
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel student-profile">
+      <p class="eyebrow">Build 2.4 • Μαθητικό προφίλ</p>
+      <div class="profile-hero">
+        <div>
+          <h2>🧑‍🎓 Καρτέλα μαθητή</h2>
+          <p>Εδώ ο μαθητής βλέπει την πορεία του, τα κειμήλια που κέρδισε, τα σημεία που χρειάζονται επανάληψη και τους σημερινούς στόχους.</p>
+        </div>
+        <div class="profile-seal">
+          <strong>${escapeHTML(state.name || 'Μαθητής')}</strong>
+          <span>${escapeHTML(rank())}</span>
+        </div>
+      </div>
+
+      <div class="profile-stats-grid">
+        <div><strong>${state.xp}</strong><span>XP</span></div>
+        <div><strong>${state.coins}</strong><span>οβολοί</span></div>
+        <div><strong>${solved}/${total}</strong><span>δοκιμασίες</span></div>
+        <div><strong>${completedCount}/${ACADEMY_UNITS.length}</strong><span>κειμήλια</span></div>
+      </div>
+
+      <section class="profile-progress-card">
+        <div class="profile-progress-head"><strong>Πορεία Ακαδημίας</strong><span>${percent}%</span></div>
+        <div class="course-meter large"><span style="width:${percent}%"></span></div>
+        <p>${escapeHTML(completionLevel(percent))}. Επόμενη προτεινόμενη περιοχή: <strong>${escapeHTML(mission ? mission.place : 'Ακαδημία')}</strong>.</p>
+        ${nextRef ? `<button id="continueProfileBtn">Συνέχισε από εδώ</button>` : ''}
+      </section>
+
+      <section class="daily-goals">
+        <h3>☀️ Σημερινοί στόχοι</h3>
+        <div class="goal-grid">
+          ${goals.map((g, i) => `
+            <button class="goal-card" data-goal="${i}">
+              <span class="goal-icon">${g.icon}</span>
+              <strong>${escapeHTML(g.title)}</strong>
+              <small>${escapeHTML(g.body)}</small>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+
+      <section class="profile-two-col">
+        <div class="profile-box-card">
+          <h3>🏺 Συλλογή κειμηλίων</h3>
+          <div class="relic-collection">
+            ${ACADEMY_UNITS.map(u => `
+              <span class="relic-chip ${state.completed[u.id] ? 'earned' : ''}" title="${escapeHTML(u.title)}">
+                ${state.completed[u.id] ? '🏺' : '🔒'} ${escapeHTML(u.relic || u.place)}
+              </span>
+            `).join('')}
+          </div>
+          <p class="source">Κερδισμένα: ${completedUnits.length}. Τα κλειδωμένα ξεκλειδώνουν όταν σφραγιστεί η αντίστοιχη περιοχή.</p>
+        </div>
+        <div class="profile-box-card">
+          <h3>🏅 Σήματα</h3>
+          <div class="badge-wall">
+            ${state.badges.length ? state.badges.map(b => `<span class="badge">${escapeHTML(b)}</span>`).join('') : '<span class="source">Δεν έχουν κερδηθεί ακόμη σήματα.</span>'}
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-two-col">
+        <div class="profile-box-card">
+          <h3>✨ Δυνατά σημεία</h3>
+          <div class="tag-meter-list">
+            ${strongTags.map(t => `<div><strong>${escapeHTML(t.tag)}</strong><span>${t.percent}% λυμένα</span><div class="mini-meter"><i style="width:${Math.min(100, t.percent)}%"></i></div></div>`).join('')}
+          </div>
+        </div>
+        <div class="profile-box-card">
+          <h3>🔁 Θέλει επανάληψη</h3>
+          <div class="tag-meter-list">
+            ${weakTags.length ? weakTags.map(t => `<div><strong>${escapeHTML(t.tag)}</strong><span>${t.mistakes} λάθη • ${t.percent}% λυμένα</span><div class="mini-meter warning"><i style="width:${Math.min(100, Math.max(8, t.percent))}%"></i></div></div>`).join('') : '<p class="source">Δεν υπάρχουν ακόμη έντονες δυσκολίες. Συνέχισε με άλυτες δοκιμασίες.</p>'}
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-box-card">
+        <h3>🔖 Σελιδοδείκτες</h3>
+        <div class="bookmark-list">
+          ${bookmarkUnits.length ? bookmarkUnits.map(x => `<button class="bookmark-open" data-unit="${escapeHTML(x.id)}"><strong>${escapeHTML(x.u.place)}</strong><span>${escapeHTML(x.u.title)}</span></button>`).join('') : '<p class="source">Δεν υπάρχουν σελιδοδείκτες. Μπορείς να προσθέσεις από κάθε ενότητα με το κουμπί ☆ Σελιδοδείκτης.</p>'}
+        </div>
+      </section>
+    </article>
+  `;
+
+  const cont = $('#continueProfileBtn');
+  if (cont && nextRef) cont.addEventListener('click', () => openExerciseRef(nextRef, 'unsolved'));
+  $$('.goal-card').forEach(btn => btn.addEventListener('click', () => {
+    const goal = goals[Number(btn.dataset.goal)];
+    if (goal && goal.ref) openExerciseRef(goal.ref, 'all');
+  }));
+  $$('.bookmark-open').forEach(btn => btn.addEventListener('click', () => {
+    const idx = ACADEMY_UNITS.findIndex(u => u.id === btn.dataset.unit);
+    if (idx >= 0) openUnit(idx);
+  }));
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderTeacherHub() {
@@ -1572,6 +1780,7 @@ function importProgressFromFile(file) {
       if (payload.mistakes && typeof payload.mistakes === 'object') next.mistakes = payload.mistakes;
       if (Array.isArray(payload.diagnostics)) next.diagnosticHistory = payload.diagnostics;
       if (payload.notes && typeof payload.notes === 'object') next.unitNotes = payload.notes;
+      if (payload.bookmarks && typeof payload.bookmarks === 'object') next.bookmarks = payload.bookmarks;
       state = next;
       save();
       toast('Η πρόοδος εισήχθη.');
@@ -1651,6 +1860,7 @@ $('#teacherPreviewBtn').addEventListener('click', () => {
 $('#diagnosticBtn').addEventListener('click', renderDiagnosticCenter);
 $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
+$('#studentProfileBtn').addEventListener('click', renderStudentProfile);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
