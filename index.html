@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Η Ακαδημία των Αρχαίων - Build 1.9</title>
+  <title>Η Ακαδημία των Αρχαίων - Build 2.0</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,7 +16,7 @@
     <section class="intro-card">
       <p class="eyebrow">Αρχαία Ελληνική Γλώσσα • Α΄ Γυμνασίου</p>
       <h1>Πέρασε την Πύλη της Ακαδημίας</h1>
-      <p>Οι Ενότητες 1-10 έχουν γίνει αποστολές: κείμενο, λεξιλόγιο, γραμματική, σύνταξη, mini boss και πορεία στον χάρτη της Ακαδημίας.</p>
+      <p>Οι Ενότητες 1-10 έχουν γίνει αποστολές με κείμενο, λεξιλόγιο, γραμματική, σύνταξη, mini boss και τελική επανάληψη. Στο Build 2.0 η εμπειρία οργανώνεται πιο καθαρά: πορεία μαθήματος, εργαλεία καθηγητή, σημειώσεις και εκτύπωση φύλλων.</p>
       <div class="profile-box">
         <input id="studentName" placeholder="Όνομα μαθητή" maxlength="22" />
         <button id="startBtn">Είσοδος στην Ακαδημία</button>
@@ -35,9 +35,18 @@
         <div><strong id="streak">0</strong><small>σερί</small></div>
         <div><strong id="relics">0</strong><small>κειμήλια</small></div>
       </div>
+
+      <div id="overallProgress" class="overall-progress"></div>
+      <div id="mentorHint" class="mentor-hint"></div>
+
       <h3>Σήματα</h3>
       <div id="badges" class="badges"></div>
-      <button id="teacherPreviewBtn" class="teacher-toggle">Προεπισκόπηση καθηγητή</button>
+
+      <div class="panel-actions">
+        <button id="teacherPreviewBtn" class="teacher-toggle">Προεπισκόπηση καθηγητή</button>
+        <button id="randomChallengeBtn" class="soft-action">Τυχαία άλυτη δοκιμασία</button>
+        <button id="exportProgressBtn" class="soft-action">Εξαγωγή προόδου</button>
+      </div>
     </aside>
 
     <section class="world">
@@ -45,6 +54,18 @@
         <p class="eyebrow">Χάρτης Προόδου</p>
         <h2>Διάλεξε περιοχή και ξεκίνα αποστολή</h2>
       </div>
+
+      <div class="map-toolbar">
+        <input id="unitSearch" class="search-input" placeholder="Αναζήτηση ενότητας, ύλης ή περιοχής..." />
+        <div class="segmented">
+          <button class="filter-btn active" data-filter="all">Όλες</button>
+          <button class="filter-btn" data-filter="open">Ανοιχτές</button>
+          <button class="filter-btn" data-filter="todo">Σε εξέλιξη</button>
+          <button class="filter-btn" data-filter="done">Ολοκληρωμένες</button>
+        </div>
+      </div>
+
+      <div id="curriculumPanel" class="curriculum-panel"></div>
       <div id="map" class="map"></div>
       <div id="lessonView" class="lesson-view"></div>
     </section>
