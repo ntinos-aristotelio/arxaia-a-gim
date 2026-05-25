@@ -1,7 +1,7 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_0';
+const stateKey = 'akadimiaArxaionProgressV2_1';
 const defaultState = {
   name: '',
   xp: 0,
@@ -10,6 +10,8 @@ const defaultState = {
   completed: {},
   badges: [],
   answers: {},
+  mistakes: {},
+  diagnosticHistory: [],
   teacherMode: false,
   activeUnitId: '',
   exerciseMode: {},
@@ -28,6 +30,8 @@ let state = Object.assign({}, defaultState, loadedState);
 state.completed = state.completed || {};
 state.badges = state.badges || [];
 state.answers = state.answers || {};
+state.mistakes = state.mistakes || {};
+state.diagnosticHistory = state.diagnosticHistory || [];
 state.exerciseMode = state.exerciseMode || {};
 state.showAnswers = state.showAnswers || {};
 state.showReport = state.showReport || {};
@@ -119,7 +123,36 @@ function award(id, points = 20, card = null) {
   return true;
 }
 
-function miss() {
+function findExerciseById(id) {
+  const lastDash = String(id).lastIndexOf('-');
+  if (lastDash < 0) return { unit: null, ex: null, idx: -1 };
+  const unitId = id.slice(0, lastDash);
+  const idx = Number(id.slice(lastDash + 1));
+  const unit = ACADEMY_UNITS.find(u => u.id === unitId);
+  return { unit, ex: unit && Number.isInteger(idx) ? unit.exercises[idx] : null, idx };
+}
+
+function recordMistake(id) {
+  if (!id) return;
+  const found = findExerciseById(id);
+  const current = state.mistakes[id] || { count: 0, firstSeen: new Date().toISOString() };
+  current.count = Number(current.count || 0) + 1;
+  current.lastSeen = new Date().toISOString();
+  if (found.unit && found.ex) {
+    current.unitId = found.unit.id;
+    current.unitTitle = found.unit.title;
+    current.place = found.unit.place;
+    current.exerciseTitle = found.ex.title;
+  }
+  state.mistakes[id] = current;
+}
+
+function mistakeTotal() {
+  return Object.values(state.mistakes || {}).reduce((sum, item) => sum + Number(item.count || 0), 0);
+}
+
+function miss(id = '') {
+  if (id) recordMistake(id);
   state.streak = 0;
   save();
   renderStats();
@@ -139,7 +172,7 @@ function renderStats() {
   $('#overallProgress').innerHTML = `
     <div class="mini-label">Συνολική πορεία</div>
     <div class="course-meter"><span style="width:${coursePercent()}%"></span></div>
-    <strong>${solved}/${total}</strong> δοκιμασίες λυμένες • <strong>${Object.keys(state.completed).length}/${ACADEMY_UNITS.length}</strong> περιοχές σφραγισμένες
+    <strong>${solved}/${total}</strong> δοκιμασίες λυμένες • <strong>${Object.keys(state.completed).length}/${ACADEMY_UNITS.length}</strong> περιοχές σφραγισμένες • <strong>${mistakeTotal()}</strong> λάθη προς επανάληψη
   `;
 
   const hint = solved === 0
@@ -610,7 +643,7 @@ function bindExercises(u) {
         const ok = +btn.dataset.a === ex.answer;
         btn.classList.add(ok ? 'correct' : 'wrong');
         card.querySelector('.feedback').textContent = ok ? ex.feedback : 'Όχι ακόμα. Ξανασκέψου τον κανόνα.';
-        ok ? award(id, 25, card) : miss();
+        ok ? award(id, 25, card) : miss(id);
       });
     }
 
@@ -622,7 +655,7 @@ function bindExercises(u) {
         const accepted = Array.isArray(ex.answer) ? ex.answer : [ex.answer];
         const ok = accepted.some(a => val === normalize(a));
         card.querySelector('.feedback').textContent = ok ? (ex.feedback || 'Σωστά. Ο πάπυρος άνοιξε.') : 'Όχι ακόμα. Πρόσεξε τόνους/κατάληξη, αλλά μπορείς να γράψεις και χωρίς τόνο.';
-        ok ? award(id, 30, card) : miss();
+        ok ? award(id, 30, card) : miss(id);
       };
     }
 
@@ -651,7 +684,7 @@ function bindExercises(u) {
           }
         } else {
           card.querySelector('.feedback').textContent = 'Δεν ταιριάζουν. Δοκίμασε άλλο ζευγάρι.';
-          miss();
+          miss(id);
         }
       });
     }
@@ -669,7 +702,7 @@ function bindExercises(u) {
         if (state.answers[id]) return toast('Αυτή η δοκιμασία έχει ήδη λυθεί.');
         const ok = JSON.stringify(picked.map(x => x.replace(/^\d+\.\s*/, ''))) === JSON.stringify(ex.correct);
         card.querySelector('.feedback').textContent = ok ? 'Η σειρά είναι σωστή.' : 'Η σωστή σειρά είναι: ' + ex.correct.join(' → ');
-        ok ? award(id, 35, card) : miss();
+        ok ? award(id, 35, card) : miss(id);
       };
     }
 
@@ -686,7 +719,7 @@ function bindExercises(u) {
           if (!good) ok = false;
         });
         card.querySelector('.feedback').textContent = ok ? (ex.feedback || 'Ο πίνακας συμπληρώθηκε σωστά.') : 'Κάποιοι τύποι θέλουν ξανά έλεγχο. Μπορείς να γράψεις και χωρίς τόνους.';
-        ok ? award(id, 45, card) : miss();
+        ok ? award(id, 45, card) : miss(id);
       };
     }
 
@@ -723,7 +756,7 @@ function bindExercises(u) {
             setTimeout(drawRound, 650);
           } else {
             card.querySelector('.feedback').textContent = 'Ο Φύλακας κρατά την ασπίδα. Ξανασκέψου.';
-            miss();
+            miss(id);
           }
         });
       }
@@ -751,58 +784,405 @@ function refreshActiveProgress() {
   renderMap();
 }
 
-function printUnit(id) {
-  const u = ACADEMY_UNITS.find(x => x.id === id);
-  const showAnswers = state.teacherMode && state.showAnswers[id];
-  const micro = u.microLessons.map(m => `<li><strong>${escapeHTML(m.title)}:</strong> ${escapeHTML(m.body)}</li>`).join('');
-  const exercises = u.exercises.map((ex, idx) => `
-    <li>
-      <strong>${idx + 1}. ${escapeHTML(ex.title)}</strong>
-      <div>${printPrompt(ex)}</div>
-      ${showAnswers ? `<div class="answer">Απάντηση: ${answerHTML(ex)}</div>` : ''}
-    </li>
-  `).join('');
 
-  const html = `
-    <!DOCTYPE html><html lang="el"><head><meta charset="UTF-8">
-    <title>${escapeHTML(u.title)}</title>
-    <style>
-      body{font-family:Georgia,'Times New Roman',serif;line-height:1.5;color:#172033;padding:24px}
-      h1{border-bottom:3px solid #c7a35a;padding-bottom:10px}
-      li{margin:12px 0}
-      .answer{margin-top:6px;font-weight:bold;color:#285c3d}
-      .meta{color:#77684f}
-    </style></head><body>
-    <h1>${escapeHTML(u.place)} — ${escapeHTML(u.title)}</h1>
-    <p class="meta">${escapeHTML(u.source)}</p>
-    <h2>Κάρτες μικρομαθήματος</h2><ol>${micro}</ol>
-    <h2>Δοκιμασίες</h2><ol>${exercises}</ol>
-    </body></html>
-  `;
-
-  const w = window.open('', '_blank');
-  if (!w) return toast('Το παράθυρο εκτύπωσης μπλοκαρίστηκε από τον browser.');
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 350);
+function allExerciseRefs() {
+  const refs = [];
+  ACADEMY_UNITS.forEach((u, unitIndex) => {
+    u.exercises.forEach((ex, idx) => refs.push({ u, unitIndex, ex, idx, id: exerciseId(u.id, idx) }));
+  });
+  return refs;
 }
 
-function printPrompt(ex) {
-  if (ex.type === 'choice') return escapeHTML(ex.prompt + ' Επιλογές: ' + ex.options.join(' / '));
-  if (ex.type === 'fill') return escapeHTML(ex.prompt);
-  if (ex.type === 'match') return escapeHTML('Αντιστοίχισε: ' + ex.pairs.map(p => p[0]).join(', ') + ' με ' + ex.pairs.map(p => p[1]).join(', '));
-  if (ex.type === 'sort') return escapeHTML(ex.prompt || 'Βάλε στη σωστή σειρά: ' + ex.items.join(', '));
-  if (ex.type === 'tablefill') return escapeHTML(ex.prompt + ' Πεδία: ' + ex.fields.map(f => f.label).join(', '));
-  if (ex.type === 'duel') return escapeHTML(ex.prompt + ' Γύροι: ' + ex.rounds.map(r => r.q).join(' | '));
-  return '';
+function openExerciseRef(ref, mode = 'all') {
+  if (!ref) return;
+  if (!isUnlocked(ref.unitIndex)) return toast('Η περιοχή είναι ακόμη κλειδωμένη στη μαθητική πορεία. Άνοιξε προεπισκόπηση καθηγητή για έλεγχο.');
+  state.exerciseMode[ref.u.id] = mode;
+  openUnit(ref.unitIndex);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-id="${ref.id}"]`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 180);
+}
+
+function diagnosticPool() {
+  const pool = [];
+  allExerciseRefs().forEach(ref => {
+    const area = learningTags(ref.u)[0] || 'Γενική επανάληψη';
+    if (ref.ex.type === 'choice') {
+      pool.push({
+        qid: ref.id + ':choice',
+        originId: ref.id,
+        ref,
+        area,
+        place: ref.u.place,
+        unitTitle: ref.u.title,
+        title: ref.ex.title,
+        prompt: ref.ex.prompt,
+        options: ref.ex.options,
+        answer: ref.ex.answer
+      });
+    }
+    if (ref.ex.type === 'duel') {
+      ref.ex.rounds.forEach((round, roundIndex) => pool.push({
+        qid: ref.id + ':duel:' + roundIndex,
+        originId: ref.id,
+        ref,
+        area,
+        place: ref.u.place,
+        unitTitle: ref.u.title,
+        title: ref.ex.title + ' • γύρος ' + (roundIndex + 1),
+        prompt: round.q,
+        options: round.options,
+        answer: round.answer
+      }));
+    }
+  });
+  return pool;
+}
+
+function selectDiagnosticQuestions(limit = 20) {
+  const pool = diagnosticPool();
+  const selected = [];
+  const used = new Set();
+  ACADEMY_UNITS.forEach(u => {
+    const first = pool.find(q => q.ref.u.id === u.id && !used.has(q.qid));
+    if (first && selected.length < limit) {
+      selected.push(first);
+      used.add(first.qid);
+    }
+  });
+  shuffle(pool).forEach(q => {
+    if (selected.length < limit && !used.has(q.qid)) {
+      selected.push(q);
+      used.add(q.qid);
+    }
+  });
+  return selected.slice(0, limit);
+}
+
+function renderDiagnosticCenter() {
+  state.activeUnitId = '';
+  save();
+  renderMap();
+  const questions = selectDiagnosticQuestions(20);
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel">
+      <p class="eyebrow">Build 2.1 • Διαγνωστικό</p>
+      <h2>🧭 Διαγνωστικό Τεστ Ακαδημίας</h2>
+      <p>Είκοσι σύντομες ερωτήσεις από όλη την ύλη. Στο τέλος εμφανίζεται αναφορά με δυνατά σημεία, αδύνατα σημεία και προτεινόμενες περιοχές επανάληψης.</p>
+      <div class="feature-grid">
+        <div><strong>${questions.length}</strong><span>ερωτήσεις</span></div>
+        <div><strong>${ACADEMY_UNITS.length}</strong><span>περιοχές ύλης</span></div>
+        <div><strong>${mistakeTotal()}</strong><span>λάθη στο βιβλίο</span></div>
+      </div>
+      <div class="diagnostic-list">
+        ${questions.map((q, i) => `
+          <section class="diagnostic-question" data-q="${i}">
+            <div class="exercise-meta"><span>${escapeHTML(q.area)}</span><span>${escapeHTML(q.place)}</span></div>
+            <h3>${i + 1}. ${escapeHTML(q.title)}</h3>
+            <p>${escapeHTML(q.prompt)}</p>
+            <div class="diagnostic-options">
+              ${q.options.map((opt, n) => `
+                <label>
+                  <input type="radio" name="diag-${i}" value="${n}">
+                  <span>${escapeHTML(opt)}</span>
+                </label>
+              `).join('')}
+            </div>
+          </section>
+        `).join('')}
+      </div>
+      <div class="feature-actions-row">
+        <button id="submitDiagnosticBtn">Ολοκλήρωση διαγνωστικού</button>
+        <button id="newDiagnosticBtn" class="ghost-tool">Νέο διαγνωστικό</button>
+      </div>
+      <div id="diagnosticResult"></div>
+    </article>
+  `;
+  $('#submitDiagnosticBtn').addEventListener('click', () => evaluateDiagnostic(questions));
+  $('#newDiagnosticBtn').addEventListener('click', renderDiagnosticCenter);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function evaluateDiagnostic(questions) {
+  let correct = 0;
+  const wrong = [];
+  const areaStats = {};
+  questions.forEach((q, i) => {
+    const checked = document.querySelector(`input[name="diag-${i}"]:checked`);
+    const picked = checked ? Number(checked.value) : -1;
+    const ok = picked === q.answer;
+    areaStats[q.area] = areaStats[q.area] || { correct: 0, total: 0 };
+    areaStats[q.area].total += 1;
+    if (ok) {
+      correct += 1;
+      areaStats[q.area].correct += 1;
+    } else {
+      wrong.push(Object.assign({}, q, { picked }));
+      recordMistake(q.originId);
+    }
+  });
+  const score = Math.round((correct / questions.length) * 100);
+  const weakAreas = Object.entries(areaStats)
+    .filter(([, v]) => v.correct < v.total)
+    .map(([area, v]) => ({ area, correct: v.correct, total: v.total }));
+
+  state.diagnosticHistory.unshift({
+    date: new Date().toISOString(),
+    score,
+    correct,
+    total: questions.length,
+    weakAreas,
+    wrong: wrong.map(q => ({ unitId: q.ref.u.id, title: q.title, area: q.area }))
+  });
+  state.diagnosticHistory = state.diagnosticHistory.slice(0, 8);
+  const bonus = Math.max(20, correct * 4);
+  state.xp += bonus;
+  state.coins += Math.ceil(bonus / 12);
+  if (score >= 80) addBadge('Διαγνωστικό 80%+');
+  if (score === 100) addBadge('Άριστος Διαγνώστης');
+  save();
+  renderStats();
+
+  const recommended = [...new Map(wrong.map(q => [q.ref.u.id, q])).values()].slice(0, 6);
+  $('#diagnosticResult').innerHTML = `
+    <section class="diagnostic-result">
+      <h3>Αποτέλεσμα: ${correct}/${questions.length} • ${score}%</h3>
+      <p>Κέρδισες ${bonus} XP. Τα λάθη αποθηκεύτηκαν στο Κέντρο Επανάληψης.</p>
+      <div class="result-meter"><span style="width:${score}%"></span></div>
+      ${weakAreas.length ? `
+        <h4>Άξονες που θέλουν επανάληψη</h4>
+        <div class="unit-tags">${weakAreas.map(a => `<span>${escapeHTML(a.area)}: ${a.correct}/${a.total}</span>`).join('')}</div>
+      ` : '<p class="success-line">Καμία αδυναμία σε αυτό το διαγνωστικό. Πολύ δυνατή πορεία.</p>'}
+      ${recommended.length ? `
+        <h4>Προτεινόμενες περιοχές επανάληψης</h4>
+        <div class="review-list">
+          ${recommended.map(q => `
+            <button class="review-item" data-unit="${q.ref.unitIndex}" data-idx="${q.ref.idx}">
+              <strong>${escapeHTML(q.place)}</strong>
+              <span>${escapeHTML(q.unitTitle)}</span>
+            </button>
+          `).join('')}
+        </div>
+      ` : ''}
+      <details class="answer-review">
+        <summary>Δες αναλυτικά τις σωστές απαντήσεις</summary>
+        <ol>
+          ${questions.map((q, i) => {
+            const picked = document.querySelector(`input[name="diag-${i}"]:checked`);
+            const pickedValue = picked ? Number(picked.value) : -1;
+            const ok = pickedValue === q.answer;
+            return `<li class="${ok ? 'ok-line' : 'bad-line'}"><strong>${escapeHTML(q.title)}</strong>: σωστό είναι <b>${escapeHTML(q.options[q.answer])}</b>${pickedValue >= 0 ? ` • επέλεξες ${escapeHTML(q.options[pickedValue])}` : ' • δεν απαντήθηκε'}</li>`;
+          }).join('')}
+        </ol>
+      </details>
+    </section>
+  `;
+  bindReviewOpenButtons();
+  $('#diagnosticResult').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function mistakeEntries() {
+  return Object.entries(state.mistakes || {})
+    .map(([id, info]) => Object.assign({ id }, info, findExerciseById(id)))
+    .filter(item => item.unit && item.ex)
+    .sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+}
+
+function collectUnsolvedByTag() {
+  const tags = {};
+  ACADEMY_UNITS.forEach((u, i) => {
+    if (!isUnlocked(i)) return;
+    const count = u.exercises.filter((_, idx) => !state.answers[exerciseId(u.id, idx)]).length;
+    if (!count) return;
+    learningTags(u).forEach(tag => tags[tag] = (tags[tag] || 0) + count);
+  });
+  return tags;
+}
+
+function renderReviewCenter() {
+  state.activeUnitId = '';
+  save();
+  renderMap();
+  const entries = mistakeEntries();
+  const unsolvedByTag = collectUnsolvedByTag();
+  const history = state.diagnosticHistory || [];
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel">
+      <p class="eyebrow">Build 2.1 • Επανάληψη</p>
+      <h2>🧠 Κέντρο Επανάληψης</h2>
+      <p>Εδώ συγκεντρώνονται οι δυσκολίες του μαθητή και μετατρέπονται σε στοχευμένη επανάληψη.</p>
+      <div class="feature-grid">
+        <div><strong>${mistakeTotal()}</strong><span>συνολικά λάθη</span></div>
+        <div><strong>${entries.length}</strong><span>δοκιμασίες με δυσκολία</span></div>
+        <div><strong>${solvedExercises()}/${totalExercises()}</strong><span>πορεία</span></div>
+      </div>
+
+      <section class="review-section">
+        <h3>🔥 Πρώτα επανάλαβε αυτά</h3>
+        ${entries.length ? `
+          <div class="review-list">
+            ${entries.slice(0, 10).map(item => `
+              <button class="review-item" data-unit="${ACADEMY_UNITS.findIndex(u => u.id === item.unit.id)}" data-idx="${item.idx}">
+                <strong>${escapeHTML(item.ex.title)}</strong>
+                <span>${escapeHTML(item.unit.place)} • ${escapeHTML(item.unit.title)} • ${item.count} λάθος/η</span>
+              </button>
+            `).join('')}
+          </div>
+          <button id="clearMistakesBtn" class="ghost-tool danger-soft">Καθαρισμός λίστας δυσκολιών</button>
+        ` : '<div class="empty-state">Δεν έχουν καταγραφεί λάθη ακόμη. Κάνε ένα διαγνωστικό ή λύσε ασκήσεις για να δημιουργηθεί προσωπική επανάληψη.</div>'}
+      </section>
+
+      <section class="review-section">
+        <h3>🧩 Άλυτες δοκιμασίες ανά άξονα</h3>
+        <div class="tag-practice-grid">
+          ${Object.entries(unsolvedByTag).sort((a,b)=>b[1]-a[1]).map(([tag, count]) => `
+            <button class="tag-practice" data-tag="${escapeHTML(tag)}">
+              <strong>${escapeHTML(tag)}</strong>
+              <span>${count} άλυτες</span>
+            </button>
+          `).join('') || '<div class="empty-state">Δεν υπάρχουν άλυτες ανοιχτές δοκιμασίες.</div>'}
+        </div>
+      </section>
+
+      <section class="review-section">
+        <h3>📈 Τελευταία διαγνωστικά</h3>
+        ${history.length ? `<div class="history-list">${history.map(h => `<div><strong>${h.score}%</strong><span>${new Date(h.date).toLocaleString('el-GR')} • ${h.correct}/${h.total}</span></div>`).join('')}</div>` : '<div class="empty-state">Δεν έχει γίνει ακόμη διαγνωστικό τεστ.</div>'}
+      </section>
+    </article>
+  `;
+  bindReviewOpenButtons();
+  const clear = $('#clearMistakesBtn');
+  if (clear) clear.addEventListener('click', () => {
+    if (!confirm('Να καθαριστεί η λίστα δυσκολιών; Δεν θα χαθεί η λυμένη πρόοδος.')) return;
+    state.mistakes = {};
+    save();
+    renderStats();
+    renderReviewCenter();
+  });
+  $$('.tag-practice').forEach(btn => btn.addEventListener('click', () => renderPracticeByTag(btn.dataset.tag)));
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPracticeByTag(tag) {
+  const items = [];
+  ACADEMY_UNITS.forEach((u, i) => {
+    if (!isUnlocked(i)) return;
+    if (!learningTags(u).includes(tag)) return;
+    u.exercises.forEach((ex, idx) => {
+      const id = exerciseId(u.id, idx);
+      if (!state.answers[id]) items.push({ u, i, ex, idx, id });
+    });
+  });
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel">
+      <p class="eyebrow">Στοχευμένη επανάληψη</p>
+      <h2>🎯 ${escapeHTML(tag)}</h2>
+      <p>Άνοιξε μία από τις παρακάτω δοκιμασίες. Η εφαρμογή θα σε μεταφέρει στην αντίστοιχη ενότητα.</p>
+      <div class="review-list">
+        ${items.slice(0, 18).map(item => `
+          <button class="review-item" data-unit="${item.i}" data-idx="${item.idx}">
+            <strong>${escapeHTML(item.ex.title)}</strong>
+            <span>${escapeHTML(item.u.place)} • ${escapeHTML(item.u.title)} • ${exerciseTypeLabel(item.ex.type)}</span>
+          </button>
+        `).join('') || '<div class="empty-state">Δεν βρέθηκαν άλυτες δοκιμασίες για αυτόν τον άξονα.</div>'}
+      </div>
+      <button id="backReviewBtn" class="ghost-tool">Επιστροφή στο Κέντρο Επανάληψης</button>
+    </article>
+  `;
+  bindReviewOpenButtons();
+  $('#backReviewBtn').addEventListener('click', renderReviewCenter);
+}
+
+function renderStudyPlan() {
+  state.activeUnitId = '';
+  save();
+  renderMap();
+  const plan = buildStudyPlan();
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel">
+      <p class="eyebrow">Build 2.1 • Πλάνο</p>
+      <h2>📅 Πλάνο Μελέτης 7 Ημερών</h2>
+      <p>Ένα πρακτικό εβδομαδιαίο πλάνο βασισμένο στην πρόοδο του μαθητή. Ξεκινά από τις ανοιχτές και μη ολοκληρωμένες περιοχές και κρατά καθημερινό στόχο μικρό.</p>
+      <div class="study-plan">
+        ${plan.map((day, i) => `
+          <section class="day-card">
+            <div class="day-number">Ημέρα ${i + 1}</div>
+            <h3>${escapeHTML(day.title)}</h3>
+            <p>${escapeHTML(day.goal)}</p>
+            <ul>${day.tasks.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ul>
+            <button class="ghost-tool" data-unit="${day.unitIndex}">Άνοιγμα περιοχής</button>
+          </section>
+        `).join('')}
+      </div>
+      <div class="feature-actions-row">
+        <button id="copyPlanBtn">Αντιγραφή πλάνου</button>
+        <button id="printPlanBtn" class="ghost-tool">Εκτύπωση</button>
+      </div>
+    </article>
+  `;
+  bindReviewOpenButtons();
+  $('#copyPlanBtn').addEventListener('click', () => copyStudyPlan(plan));
+  $('#printPlanBtn').addEventListener('click', () => window.print());
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function buildStudyPlan() {
+  const candidates = ACADEMY_UNITS
+    .map((u, i) => ({ u, i, solved: unitSolvedCount(u), total: u.exercises.length, done: !!state.completed[u.id], unlocked: isUnlocked(i) }))
+    .filter(item => item.unlocked)
+    .sort((a, b) => Number(a.done) - Number(b.done) || (a.solved / a.total) - (b.solved / b.total));
+  const source = candidates.length ? candidates : ACADEMY_UNITS.map((u, i) => ({ u, i, solved: unitSolvedCount(u), total: u.exercises.length }));
+  const labels = ['Είσοδος στην ύλη', 'Λεξιλόγιο και κατανόηση', 'Γραμματική βάση', 'Στοχευμένη εξάσκηση', 'Mini boss', 'Επανάληψη λαθών', 'Σφράγισμα πορείας'];
+  return Array.from({ length: 7 }, (_, day) => {
+    const item = source[day % source.length];
+    const u = item.u;
+    const unsolved = u.exercises.length - unitSolvedCount(u);
+    return {
+      unitIndex: item.i,
+      title: u.place + ' — ' + u.title,
+      goal: labels[day] + '. Στόχος: μικρή, καθαρή πρόοδος χωρίς βιασύνη.',
+      tasks: [
+        'Διάβασε 2 κάρτες μικρομαθήματος.',
+        'Λύσε 5 άλυτες δοκιμασίες ή όσες απομένουν αν είναι λιγότερες.',
+        unsolved > 0 ? 'Σημείωσε μία δυσκολία στο πεδίο σημειώσεων μαθητή.' : 'Κάνε επανάληψη από τις σωστές απαντήσεις και κλείσε την ενότητα.',
+        day >= 4 ? 'Δοκίμασε mini boss ή τυχαία άλυτη δοκιμασία.' : 'Μη βιαστείς για boss πριν δεις τα βασικά.'
+      ]
+    };
+  });
+}
+
+function copyStudyPlan(plan) {
+  const text = plan.map((day, i) => `Ημέρα ${i + 1}: ${day.title}\n- ${day.tasks.join('\n- ')}`).join('\n\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => toast('Το πλάνο αντιγράφηκε.')).catch(() => toast('Δεν μπόρεσε να αντιγραφεί αυτόματα.'));
+  } else {
+    toast('Ο browser δεν υποστηρίζει αυτόματη αντιγραφή.');
+  }
+}
+
+function bindReviewOpenButtons() {
+  $$('.review-item,[data-unit]').forEach(btn => btn.addEventListener('click', () => {
+    const unitIndex = Number(btn.dataset.unit);
+    const idx = btn.dataset.idx === undefined ? null : Number(btn.dataset.idx);
+    const u = ACADEMY_UNITS[unitIndex];
+    if (!u) return;
+    if (!isUnlocked(unitIndex)) return toast('Η περιοχή είναι ακόμη κλειδωμένη στη μαθητική πορεία. Άνοιξε προεπισκόπηση καθηγητή για έλεγχο.');
+    if (idx !== null && Number.isInteger(idx)) state.exerciseMode[u.id] = 'all';
+    openUnit(unitIndex);
+    if (idx !== null && Number.isInteger(idx)) {
+      setTimeout(() => {
+        const card = document.querySelector(`[data-id="${exerciseId(u.id, idx)}"]`);
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 180);
+    }
+  }));
 }
 
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.0',
+    build: '2.1',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -811,6 +1191,8 @@ function exportProgress() {
     totalExercises: totalExercises(),
     completedUnits: Object.keys(state.completed),
     badges: state.badges,
+    mistakes: state.mistakes,
+    diagnostics: state.diagnosticHistory,
     notes: state.unitNotes
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -872,6 +1254,9 @@ $('#teacherPreviewBtn').addEventListener('click', () => {
   render();
   toast(state.teacherMode ? 'Άνοιξαν όλες οι περιοχές για έλεγχο.' : 'Επιστροφή στη μαθητική πορεία.');
 });
+$('#diagnosticBtn').addEventListener('click', renderDiagnosticCenter);
+$('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
+$('#studyPlanBtn').addEventListener('click', renderStudyPlan);
 $('#randomChallengeBtn').addEventListener('click', openRandomUnsolved);
 $('#exportProgressBtn').addEventListener('click', exportProgress);
 $('#unitSearch').addEventListener('input', e => {
@@ -884,6 +1269,7 @@ $$('.filter-btn').forEach(btn => btn.addEventListener('click', () => {
   btn.classList.add('active');
   renderMap();
 }));
+
 
 if (state.name) {
   $('.hero').classList.add('hidden');
