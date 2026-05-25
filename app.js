@@ -1,5 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
-const stateKey = 'akadimiaArxaionProgressV1_7';
+const stateKey = 'akadimiaArxaionProgressV1_8';
 let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
 state = Object.assign({name:'', xp:0, coins:0, streak:0, completed:{}, badges:[], answers:{}, teacherMode:false}, state);
 
