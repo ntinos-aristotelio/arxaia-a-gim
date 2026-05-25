@@ -1,7 +1,7 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_1';
+const stateKey = 'akadimiaArxaionProgressV2_2';
 const defaultState = {
   name: '',
   xp: 0,
@@ -17,7 +17,8 @@ const defaultState = {
   exerciseMode: {},
   showAnswers: {},
   showReport: {},
-  unitNotes: {}
+  unitNotes: {},
+  teacherPrefs: {}
 };
 
 let loadedState = {};
@@ -36,9 +37,11 @@ state.exerciseMode = state.exerciseMode || {};
 state.showAnswers = state.showAnswers || {};
 state.showReport = state.showReport || {};
 state.unitNotes = state.unitNotes || {};
+state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
 let mapSearch = '';
+let classroomSession = { deck: [], index: 0, showAnswer: false, scores: { a: 0, b: 0 } };
 
 function save() {
   localStorage.setItem(stateKey, JSON.stringify(state));
@@ -1182,7 +1185,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.1',
+    build: '2.2',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1190,6 +1193,7 @@ function exportProgress() {
     solvedExercises: solvedExercises(),
     totalExercises: totalExercises(),
     completedUnits: Object.keys(state.completed),
+    answers: state.answers,
     badges: state.badges,
     mistakes: state.mistakes,
     diagnostics: state.diagnosticHistory,
@@ -1203,6 +1207,325 @@ function exportProgress() {
   a.click();
   a.remove();
   URL.revokeObjectURL(a.href);
+}
+
+function featureStart() {
+  state.activeUnitId = '';
+  save();
+  renderMap();
+}
+
+function unitOptionHTML(selectedIds = []) {
+  const selected = new Set(selectedIds);
+  return ACADEMY_UNITS.map((u, i) => `
+    <label class="checkline">
+      <input type="checkbox" name="quizUnit" value="${escapeHTML(u.id)}" ${selected.size === 0 || selected.has(u.id) ? 'checked' : ''}>
+      <span>${i + 1}. ${escapeHTML(u.place)} — ${escapeHTML(u.title)}</span>
+    </label>
+  `).join('');
+}
+
+function typeOptionHTML(selectedTypes = []) {
+  const types = ['choice', 'fill', 'match', 'sort', 'tablefill', 'duel'];
+  const selected = new Set(selectedTypes);
+  return types.map(type => `
+    <label class="checkline compact">
+      <input type="checkbox" name="quizType" value="${type}" ${selected.size === 0 || selected.has(type) ? 'checked' : ''}>
+      <span>${exerciseTypeLabel(type)}</span>
+    </label>
+  `).join('');
+}
+
+function allRefsByFilters(unitIds, types, includeSolved = true) {
+  const unitSet = new Set(unitIds || []);
+  const typeSet = new Set(types || []);
+  return allExerciseRefs().filter(ref => {
+    if (unitSet.size && !unitSet.has(ref.u.id)) return false;
+    if (typeSet.size && !typeSet.has(ref.ex.type)) return false;
+    if (!includeSolved && state.answers[ref.id]) return false;
+    return true;
+  });
+}
+
+function readGeneratorForm() {
+  const unitIds = $$('input[name="quizUnit"]:checked').map(x => x.value);
+  const types = $$('input[name="quizType"]:checked').map(x => x.value);
+  const countInput = $('#testQuestionCount');
+  const count = Math.max(5, Math.min(80, Number(countInput ? countInput.value : 20) || 20));
+  const includeAnswers = !!($('#testIncludeAnswers') && $('#testIncludeAnswers').checked);
+  const includeMicro = !!($('#testIncludeMicro') && $('#testIncludeMicro').checked);
+  const includeSolved = !!($('#testIncludeSolved') && $('#testIncludeSolved').checked);
+  return { unitIds, types, count, includeAnswers, includeMicro, includeSolved };
+}
+
+function renderTeacherHub() {
+  featureStart();
+  const rows = ACADEMY_UNITS.map((u, i) => {
+    const counts = typeCounts(u);
+    const tags = learningTags(u);
+    const solved = unitSolvedCount(u);
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${escapeHTML(u.place)}</strong><br><span>${escapeHTML(u.title)}</span></td>
+        <td>${solved}/${u.exercises.length}</td>
+        <td>${tags.map(t => `<span class="mini-chip">${escapeHTML(t)}</span>`).join('')}</td>
+        <td>${Object.entries(counts).map(([k, v]) => `${escapeHTML(k)}: ${v}`).join('<br>')}</td>
+        <td><button class="tiny-open" data-unit="${i}">Άνοιγμα</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel teacher-hub">
+      <p class="eyebrow">Build 2.2 • Κέντρο καθηγητή</p>
+      <h2>🧭 Πίνακας ελέγχου ύλης</h2>
+      <p>Εδώ βλέπεις γρήγορα τι υπάρχει σε κάθε αποστολή, πόσες δοκιμασίες έχει, ποιοι άξονες ύλης καλύπτονται και πού βρίσκεται ο μαθητής.</p>
+
+      <div class="teacher-summary-grid">
+        <div><strong>${ACADEMY_UNITS.length}</strong><span>περιοχές</span></div>
+        <div><strong>${totalExercises()}</strong><span>δοκιμασίες</span></div>
+        <div><strong>${solvedExercises()}</strong><span>λυμένες</span></div>
+        <div><strong>${coursePercent()}%</strong><span>πορεία</span></div>
+      </div>
+
+      <div class="teacher-next-actions">
+        <button id="hubTestBtn">Δημιουργία τεστ</button>
+        <button id="hubClassBtn" class="ghost-tool">Λειτουργία τάξης</button>
+        <button id="hubPrintBtn" class="ghost-tool">Εκτύπωση χάρτη ύλης</button>
+      </div>
+
+      <section class="teacher-usage-card">
+        <h3>Πρακτική χρήση στην τάξη</h3>
+        <ol>
+          <li>Ξεκίνα με 2-3 κάρτες μικρομαθήματος από την ενότητα.</li>
+          <li>Άνοιξε τη λειτουργία τάξης για γρήγορες ερωτήσεις στον πίνακα.</li>
+          <li>Κλείσε με mini boss ή τύπωσε μικρό φύλλο από τη γεννήτρια τεστ.</li>
+        </ol>
+      </section>
+
+      <div class="table-wrap">
+        <table class="curriculum-table">
+          <thead><tr><th>#</th><th>Περιοχή</th><th>Πρόοδος</th><th>Άξονες</th><th>Τύποι</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </article>
+  `;
+  $$('.tiny-open').forEach(btn => btn.addEventListener('click', () => openUnit(Number(btn.dataset.unit))));
+  $('#hubTestBtn').addEventListener('click', renderTestGenerator);
+  $('#hubClassBtn').addEventListener('click', renderClassroomMode);
+  $('#hubPrintBtn').addEventListener('click', () => window.print());
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTestGenerator() {
+  featureStart();
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel test-generator">
+      <p class="eyebrow">Build 2.2 • Γεννήτρια</p>
+      <h2>📝 Γεννήτρια τεστ / φύλλου εργασίας</h2>
+      <p>Διάλεξε ενότητες, τύπους ασκήσεων και αριθμό ερωτήσεων. Η εφαρμογή φτιάχνει άμεσα εκτυπώσιμο φύλλο εργασίας από το υλικό της Ακαδημίας.</p>
+
+      <div class="generator-layout">
+        <section class="generator-box">
+          <h3>1. Ενότητες</h3>
+          <div class="check-toolbar">
+            <button id="selectAllUnits" class="ghost-tool">Όλες</button>
+            <button id="clearUnits" class="ghost-tool">Καμία</button>
+            <button id="schoolOnlyUnits" class="ghost-tool">Μόνο Ενότητες 1-10</button>
+          </div>
+          <div class="check-grid tall">${unitOptionHTML()}</div>
+        </section>
+
+        <section class="generator-box">
+          <h3>2. Τύποι και μορφή</h3>
+          <div class="check-grid">${typeOptionHTML()}</div>
+          <label class="form-row"><span>Πλήθος ερωτήσεων</span><input id="testQuestionCount" type="number" min="5" max="80" value="20"></label>
+          <label class="checkline"><input id="testIncludeAnswers" type="checkbox"> <span>Να εμφανιστεί κλείδα απαντήσεων</span></label>
+          <label class="checkline"><input id="testIncludeMicro" type="checkbox" checked> <span>Να μπουν σύντομες κάρτες θεωρίας</span></label>
+          <label class="checkline"><input id="testIncludeSolved" type="checkbox" checked> <span>Να επιτρέπονται και ήδη λυμένες ασκήσεις</span></label>
+          <button id="makeTestBtn">Δημιουργία φύλλου</button>
+        </section>
+      </div>
+      <div id="generatedTest"></div>
+    </article>
+  `;
+  $('#selectAllUnits').addEventListener('click', () => $$('input[name="quizUnit"]').forEach(x => x.checked = true));
+  $('#clearUnits').addEventListener('click', () => $$('input[name="quizUnit"]').forEach(x => x.checked = false));
+  $('#schoolOnlyUnits').addEventListener('click', () => $$('input[name="quizUnit"]').forEach(x => x.checked = /Ενότητα\s+\d+/.test(ACADEMY_UNITS.find(u => u.id === x.value)?.title || '')));
+  $('#makeTestBtn').addEventListener('click', generateTestSheet);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function generateTestSheet() {
+  const cfg = readGeneratorForm();
+  if (!cfg.unitIds.length) return toast('Διάλεξε τουλάχιστον μία ενότητα.');
+  if (!cfg.types.length) return toast('Διάλεξε τουλάχιστον έναν τύπο άσκησης.');
+  const pool = shuffle(allRefsByFilters(cfg.unitIds, cfg.types, cfg.includeSolved));
+  if (!pool.length) return toast('Δεν βρέθηκαν ερωτήσεις με αυτά τα κριτήρια.');
+  const picks = pool.slice(0, cfg.count);
+  const units = [...new Set(picks.map(p => p.u.id))].map(id => ACADEMY_UNITS.find(u => u.id === id)).filter(Boolean);
+  const micro = cfg.includeMicro ? units.slice(0, 5).map(u => `
+    <section class="test-micro">
+      <strong>${escapeHTML(u.title)}</strong>
+      <ul>${(u.microLessons || []).slice(0, 2).map(m => `<li><b>${escapeHTML(m.title)}:</b> ${escapeHTML(m.body)}</li>`).join('')}</ul>
+    </section>
+  `).join('') : '';
+
+  $('#generatedTest').innerHTML = `
+    <section class="generated-test">
+      <div class="test-head">
+        <div>
+          <p class="eyebrow">Φύλλο εργασίας</p>
+          <h3>Ακαδημία των Αρχαίων</h3>
+          <p>Όνομα: ____________________  Τμήμα: ______  Ημερομηνία: __________</p>
+        </div>
+        <button id="printGeneratedTest" class="ghost-tool no-print">Εκτύπωση</button>
+      </div>
+      ${micro}
+      <ol class="test-questions">
+        ${picks.map((ref, i) => `<li>${exercisePrintHTML(ref, i + 1, false)}</li>`).join('')}
+      </ol>
+      ${cfg.includeAnswers ? `<section class="answer-key-panel"><h3>Κλείδα απαντήσεων</h3><ol>${picks.map((ref, i) => `<li><strong>${i + 1}.</strong> ${answerHTML(ref.ex)}</li>`).join('')}</ol></section>` : ''}
+    </section>
+  `;
+  $('#printGeneratedTest').addEventListener('click', () => window.print());
+  $('#generatedTest').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function exercisePrintHTML(ref, number, withAnswer = false) {
+  const ex = ref.ex;
+  const unitLine = `<div class="test-meta">${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ex.type)}</div>`;
+  let body = '';
+  if (ex.type === 'choice') {
+    body = `<p>${escapeHTML(ex.prompt)}</p><ol type="A">${ex.options.map(o => `<li>${escapeHTML(o)}</li>`).join('')}</ol>`;
+  } else if (ex.type === 'fill') {
+    body = `<p>${escapeHTML(ex.prompt)}</p><div class="answer-line"></div>`;
+  } else if (ex.type === 'match') {
+    body = `<p>Αντιστοίχισε τα ζευγάρια.</p><div class="print-match"><div>${ex.pairs.map(p => `<p>${escapeHTML(p[0])}</p>`).join('')}</div><div>${shuffle(ex.pairs.map(p => p[1])).map(v => `<p>${escapeHTML(v)}</p>`).join('')}</div></div>`;
+  } else if (ex.type === 'sort') {
+    body = `<p>${escapeHTML(ex.prompt || 'Βάλε τα στοιχεία στη σωστή σειρά.')}</p><p>${shuffle(ex.items).map(escapeHTML).join(' • ')}</p><div class="answer-line"></div>`;
+  } else if (ex.type === 'tablefill') {
+    body = `<p>${escapeHTML(ex.prompt)}</p><table class="mini-fill-table"><tbody>${ex.fields.map(f => `<tr><td>${escapeHTML(f.label)}</td><td></td></tr>`).join('')}</tbody></table>`;
+  } else if (ex.type === 'duel') {
+    body = `<p>${escapeHTML(ex.prompt)}</p>${ex.rounds.map((r, i) => `<p><strong>Γύρος ${i + 1}:</strong> ${escapeHTML(r.q)}</p><ol type="A">${r.options.map(o => `<li>${escapeHTML(o)}</li>`).join('')}</ol>`).join('')}`;
+  }
+  return `<article class="test-question">${unitLine}<strong>${escapeHTML(ex.title)}</strong>${body}${withAnswer ? `<div class="teacher-answer"><strong>Απάντηση:</strong> ${answerHTML(ex)}</div>` : ''}</article>`;
+}
+
+function renderClassroomMode() {
+  featureStart();
+  classroomSession = { deck: [], index: 0, showAnswer: false, scores: classroomSession.scores || { a: 0, b: 0 } };
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel classroom-mode">
+      <p class="eyebrow">Build 2.2 • Προβολή τάξης</p>
+      <h2>🎲 Λειτουργία τάξης</h2>
+      <p>Γρήγορος γύρος για διαδραστικό πίνακα ή προφορική επανάληψη. Διάλεξε ύλη, πάτα έναρξη και μοίρασε πόντους σε ομάδες.</p>
+      <div class="classroom-controls">
+        <label><span>Περιοχή</span><select id="classroomUnit"><option value="all">Όλη η ύλη</option>${ACADEMY_UNITS.map((u,i)=>`<option value="${i}">${i+1}. ${escapeHTML(u.place)} — ${escapeHTML(u.title)}</option>`).join('')}</select></label>
+        <label><span>Τύπος</span><select id="classroomType"><option value="all">Όλοι οι τύποι</option><option value="choice">Επιλογή</option><option value="fill">Συμπλήρωση</option><option value="match">Αντιστοίχιση</option><option value="sort">Σειρά</option><option value="tablefill">Πίνακας</option><option value="duel">Mini boss</option></select></label>
+        <label><span>Γύροι</span><input id="classroomRounds" type="number" min="3" max="30" value="10"></label>
+        <button id="startClassroomBtn">Έναρξη γύρου</button>
+      </div>
+      <div id="classroomStage" class="classroom-stage empty-state">Διάλεξε ρυθμίσεις και ξεκίνα.</div>
+    </article>
+  `;
+  $('#startClassroomBtn').addEventListener('click', startClassroomSession);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function startClassroomSession() {
+  const unitValue = $('#classroomUnit').value;
+  const typeValue = $('#classroomType').value;
+  const rounds = Math.max(3, Math.min(30, Number($('#classroomRounds').value) || 10));
+  const unitIds = unitValue === 'all' ? [] : [ACADEMY_UNITS[Number(unitValue)].id];
+  const types = typeValue === 'all' ? [] : [typeValue];
+  const deck = shuffle(allRefsByFilters(unitIds, types, true)).slice(0, rounds);
+  if (!deck.length) return toast('Δεν υπάρχουν διαθέσιμες ερωτήσεις με αυτά τα κριτήρια.');
+  classroomSession.deck = deck;
+  classroomSession.index = 0;
+  classroomSession.showAnswer = false;
+  renderClassroomStage();
+}
+
+function renderClassroomStage() {
+  const ref = classroomSession.deck[classroomSession.index];
+  if (!ref) {
+    $('#classroomStage').className = 'classroom-stage';
+    $('#classroomStage').innerHTML = `
+      <div class="classroom-finish">
+        <h3>Τέλος γύρου</h3>
+        <p>Αθηναίοι: <strong>${classroomSession.scores.a}</strong> • Σπαρτιάτες: <strong>${classroomSession.scores.b}</strong></p>
+        <button id="restartClassroomBtn">Νέος γύρος</button>
+        <button id="resetClassScoresBtn" class="ghost-tool">Μηδενισμός πόντων</button>
+      </div>
+    `;
+    $('#restartClassroomBtn').addEventListener('click', startClassroomSession);
+    $('#resetClassScoresBtn').addEventListener('click', () => { classroomSession.scores = { a: 0, b: 0 }; renderClassroomStage(); });
+    return;
+  }
+  const ex = ref.ex;
+  $('#classroomStage').className = 'classroom-stage';
+  $('#classroomStage').innerHTML = `
+    <div class="scoreboard"><span>Αθηναίοι: <strong>${classroomSession.scores.a}</strong></span><span>Σπαρτιάτες: <strong>${classroomSession.scores.b}</strong></span><span>Γύρος ${classroomSession.index + 1}/${classroomSession.deck.length}</span></div>
+    <section class="class-question">
+      <div class="test-meta">${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ex.type)}</div>
+      <h3>${escapeHTML(ex.title)}</h3>
+      ${classroomQuestionBody(ex)}
+      ${classroomSession.showAnswer ? `<div class="class-answer"><strong>Απάντηση:</strong> ${answerHTML(ex)}</div>` : ''}
+    </section>
+    <div class="class-actions">
+      <button id="revealClassAnswer">${classroomSession.showAnswer ? 'Απόκρυψη απάντησης' : 'Φανέρωση απάντησης'}</button>
+      <button id="pointA" class="ghost-tool">+1 Αθηναίοι</button>
+      <button id="pointB" class="ghost-tool">+1 Σπαρτιάτες</button>
+      <button id="nextClassQuestion" class="ghost-tool">Επόμενη</button>
+    </div>
+  `;
+  $('#revealClassAnswer').addEventListener('click', () => { classroomSession.showAnswer = !classroomSession.showAnswer; renderClassroomStage(); });
+  $('#pointA').addEventListener('click', () => { classroomSession.scores.a += 1; renderClassroomStage(); });
+  $('#pointB').addEventListener('click', () => { classroomSession.scores.b += 1; renderClassroomStage(); });
+  $('#nextClassQuestion').addEventListener('click', () => { classroomSession.index += 1; classroomSession.showAnswer = false; renderClassroomStage(); });
+}
+
+function classroomQuestionBody(ex) {
+  if (ex.type === 'choice') return `<p>${escapeHTML(ex.prompt)}</p><div class="big-options">${ex.options.map((o,i)=>`<div><strong>${String.fromCharCode(65+i)}.</strong> ${escapeHTML(o)}</div>`).join('')}</div>`;
+  if (ex.type === 'fill') return `<p>${escapeHTML(ex.prompt)}</p><div class="class-blank">____________________________</div>`;
+  if (ex.type === 'match') return `<p>Ποια ζευγάρια ταιριάζουν;</p><div class="print-match"><div>${ex.pairs.map(p=>`<p>${escapeHTML(p[0])}</p>`).join('')}</div><div>${shuffle(ex.pairs.map(p=>p[1])).map(v=>`<p>${escapeHTML(v)}</p>`).join('')}</div></div>`;
+  if (ex.type === 'sort') return `<p>${escapeHTML(ex.prompt || 'Βάλε τα στοιχεία στη σωστή σειρά.')}</p><p class="class-items">${shuffle(ex.items).map(escapeHTML).join(' • ')}</p>`;
+  if (ex.type === 'tablefill') return `<p>${escapeHTML(ex.prompt)}</p><table class="mini-fill-table"><tbody>${ex.fields.map(f=>`<tr><td>${escapeHTML(f.label)}</td><td>________________</td></tr>`).join('')}</tbody></table>`;
+  if (ex.type === 'duel') return `<p>${escapeHTML(ex.prompt)}</p>${ex.rounds.map((r,i)=>`<p><strong>Γύρος ${i+1}:</strong> ${escapeHTML(r.q)}</p><div class="big-options">${r.options.map((o,j)=>`<div><strong>${String.fromCharCode(65+j)}.</strong> ${escapeHTML(o)}</div>`).join('')}</div>`).join('')}`;
+  return '';
+}
+
+function importProgressFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(reader.result);
+      const next = Object.assign({}, defaultState, state);
+      if (payload.student) next.name = payload.student;
+      if (payload.xp !== undefined) next.xp = Number(payload.xp) || 0;
+      if (payload.coins !== undefined) next.coins = Number(payload.coins) || 0;
+      if (payload.answers && typeof payload.answers === 'object') next.answers = payload.answers;
+      if (Array.isArray(payload.completedUnits)) {
+        next.completed = {};
+        payload.completedUnits.forEach(id => next.completed[id] = true);
+      }
+      if (Array.isArray(payload.badges)) next.badges = payload.badges;
+      if (payload.mistakes && typeof payload.mistakes === 'object') next.mistakes = payload.mistakes;
+      if (Array.isArray(payload.diagnostics)) next.diagnosticHistory = payload.diagnostics;
+      if (payload.notes && typeof payload.notes === 'object') next.unitNotes = payload.notes;
+      state = next;
+      save();
+      toast('Η πρόοδος εισήχθη.');
+      render();
+    } catch (err) {
+      toast('Το αρχείο δεν διαβάστηκε ως έγκυρη πρόοδος.');
+    }
+  };
+  reader.readAsText(file, 'utf-8');
 }
 
 function openRandomUnsolved() {
@@ -1257,8 +1580,13 @@ $('#teacherPreviewBtn').addEventListener('click', () => {
 $('#diagnosticBtn').addEventListener('click', renderDiagnosticCenter);
 $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
+$('#teacherHubBtn').addEventListener('click', renderTeacherHub);
+$('#testGeneratorBtn').addEventListener('click', renderTestGenerator);
+$('#classroomModeBtn').addEventListener('click', renderClassroomMode);
 $('#randomChallengeBtn').addEventListener('click', openRandomUnsolved);
 $('#exportProgressBtn').addEventListener('click', exportProgress);
+$('#importProgressBtn').addEventListener('click', () => $('#importProgressFile').click());
+$('#importProgressFile').addEventListener('change', e => importProgressFromFile(e.target.files[0]));
 $('#unitSearch').addEventListener('input', e => {
   mapSearch = e.target.value;
   renderMap();
