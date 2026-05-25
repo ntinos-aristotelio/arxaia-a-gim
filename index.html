@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Η Ακαδημία των Αρχαίων - Build 2.2</title>
+  <title>Η Ακαδημία των Αρχαίων - Build 2.3</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,7 +16,7 @@
     <section class="intro-card">
       <p class="eyebrow">Αρχαία Ελληνική Γλώσσα • Α΄ Γυμνασίου</p>
       <h1>Πέρασε την Πύλη της Ακαδημίας</h1>
-      <p>Οι Ενότητες 1-10 έχουν γίνει αποστολές με κείμενο, λεξιλόγιο, γραμματική, σύνταξη, mini boss και τελική επανάληψη. Στο Build 2.2 προστίθεται Κέντρο Καθηγητή, γεννήτρια τεστ και λειτουργία τάξης για ζωντανή χρήση στον διαδραστικό πίνακα.</p>
+      <p>Οι Ενότητες 1-10 έχουν γίνει αποστολές με κείμενο, λεξιλόγιο, γραμματική, σύνταξη, mini boss και τελική επανάληψη. Στο Build 2.3 τα εργαλεία καθηγητή συγκεντρώνονται σε προστατευμένο μενού με κωδικό, ώστε οι μαθητές να βλέπουν μόνο τα δικά τους εργαλεία μάθησης.</p>
       <div class="profile-box">
         <input id="studentName" placeholder="Όνομα μαθητή" maxlength="22" />
         <button id="startBtn">Είσοδος στην Ακαδημία</button>
@@ -43,16 +43,27 @@
       <div id="badges" class="badges"></div>
 
       <div class="panel-actions">
-        <button id="teacherPreviewBtn" class="teacher-toggle">Προεπισκόπηση καθηγητή</button>
         <button id="diagnosticBtn" class="soft-action feature-action">Διαγνωστικό τεστ</button>
         <button id="reviewCenterBtn" class="soft-action feature-action">Κέντρο επανάληψης</button>
         <button id="studyPlanBtn" class="soft-action feature-action">Πλάνο 7 ημερών</button>
-        <button id="teacherHubBtn" class="soft-action feature-action">Κέντρο καθηγητή</button>
-        <button id="testGeneratorBtn" class="soft-action feature-action">Γεννήτρια τεστ</button>
-        <button id="classroomModeBtn" class="soft-action feature-action">Λειτουργία τάξης</button>
         <button id="randomChallengeBtn" class="soft-action">Τυχαία άλυτη δοκιμασία</button>
-        <button id="exportProgressBtn" class="soft-action">Εξαγωγή προόδου</button>
-        <button id="importProgressBtn" class="soft-action">Εισαγωγή προόδου</button>
+
+        <div class="teacher-tools-box locked" id="teacherToolsBox">
+          <button id="teacherToolsBtn" class="teacher-tools-gate">🔐 Εργαλεία καθηγητή</button>
+          <div id="teacherToolsMenu" class="teacher-tools-menu hidden">
+            <div class="teacher-tools-head">
+              <strong>Εργαλεία καθηγητή</strong>
+              <span>Προστατευμένα με κωδικό</span>
+            </div>
+            <button id="teacherPreviewBtn" class="teacher-toggle">Προεπισκόπηση καθηγητή</button>
+            <button id="teacherHubBtn" class="soft-action feature-action">Κέντρο καθηγητή</button>
+            <button id="testGeneratorBtn" class="soft-action feature-action">Γεννήτρια τεστ</button>
+            <button id="classroomModeBtn" class="soft-action feature-action">Λειτουργία τάξης</button>
+            <button id="exportProgressBtn" class="soft-action">Εξαγωγή προόδου</button>
+            <button id="importProgressBtn" class="soft-action">Εισαγωγή προόδου</button>
+            <button id="lockTeacherToolsBtn" class="soft-action lock-action">Κλείδωμα εργαλείων</button>
+          </div>
+        </div>
         <input id="importProgressFile" type="file" accept="application/json,.json" class="hidden" />
       </div>
     </aside>

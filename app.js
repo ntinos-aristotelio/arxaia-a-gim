@@ -1,7 +1,9 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_2';
+const stateKey = 'akadimiaArxaionProgressV2_3';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_3';
+const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
   xp: 0,
@@ -62,6 +64,55 @@ function toast(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2200);
+}
+
+function teacherToolsUnlocked() {
+  return sessionStorage.getItem(teacherToolsKey) === 'true';
+}
+
+function setTeacherToolsUnlocked(value) {
+  if (value) {
+    sessionStorage.setItem(teacherToolsKey, 'true');
+  } else {
+    sessionStorage.removeItem(teacherToolsKey);
+  }
+  renderTeacherToolsMenu();
+}
+
+function requestTeacherAccess() {
+  if (teacherToolsUnlocked()) {
+    renderTeacherToolsMenu(true);
+    return true;
+  }
+  const code = prompt('Κωδικός καθηγητή');
+  if (code === TEACHER_CODE) {
+    setTeacherToolsUnlocked(true);
+    toast('Τα εργαλεία καθηγητή ξεκλειδώθηκαν.');
+    return true;
+  }
+  if (code !== null) toast('Λάθος κωδικός καθηγητή.');
+  return false;
+}
+
+function renderTeacherToolsMenu(forceOpen = false) {
+  const box = $('#teacherToolsBox');
+  const menu = $('#teacherToolsMenu');
+  const gate = $('#teacherToolsBtn');
+  if (!box || !menu || !gate) return;
+  const unlocked = teacherToolsUnlocked();
+  box.classList.toggle('locked', !unlocked);
+  box.classList.toggle('unlocked', unlocked);
+  if (unlocked || forceOpen) {
+    menu.classList.remove('hidden');
+    gate.textContent = '🔓 Εργαλεία καθηγητή';
+  } else {
+    menu.classList.add('hidden');
+    gate.textContent = '🔐 Εργαλεία καθηγητή';
+  }
+}
+
+function ensureTeacherAccess() {
+  return teacherToolsUnlocked() || requestTeacherAccess();
 }
 
 function rank() {
@@ -196,6 +247,7 @@ function renderStats() {
     preview.textContent = state.teacherMode ? 'Κλείσιμο προεπισκόπησης' : 'Προεπισκόπηση καθηγητή';
     preview.classList.toggle('active', !!state.teacherMode);
   }
+  renderTeacherToolsMenu();
 }
 
 function start() {
@@ -359,8 +411,7 @@ function openUnit(i, rerenderMap = true) {
         <button id="showBossBtn" class="${mode === 'boss' ? 'active-tool' : ''}">Μόνο boss</button>
         <button id="showAllBtn" class="${mode === 'all' ? 'active-tool' : ''}">Όλες</button>
         <button id="printUnitBtn" class="ghost-tool">Εκτύπωση φύλλου</button>
-        <button id="toggleReportBtn" class="ghost-tool">${showReport ? 'Κλείσιμο αναφοράς' : 'Αναφορά καθηγητή'}</button>
-        <button id="toggleAnswersBtn" class="ghost-tool ${!state.teacherMode ? 'disabled-tool' : ''}">${showAnswers ? 'Απόκρυψη απαντήσεων' : 'Σωστές απαντήσεις'}</button>
+        ${state.teacherMode ? `<button id="toggleReportBtn" class="ghost-tool">${showReport ? 'Κλείσιμο αναφοράς' : 'Αναφορά καθηγητή'}</button><button id="toggleAnswersBtn" class="ghost-tool">${showAnswers ? 'Απόκρυψη απαντήσεων' : 'Σωστές απαντήσεις'}</button>` : ''}
       </div>
 
       ${showReport ? buildTeacherReport(u) : ''}
@@ -381,12 +432,16 @@ function openUnit(i, rerenderMap = true) {
   $('#showBossBtn').addEventListener('click', () => setExerciseMode(u.id, 'boss'));
   $('#showAllBtn').addEventListener('click', () => setExerciseMode(u.id, 'all'));
   $('#printUnitBtn').addEventListener('click', () => printUnit(u.id));
-  $('#toggleReportBtn').addEventListener('click', () => {
+  const reportBtn = $('#toggleReportBtn');
+  if (reportBtn) reportBtn.addEventListener('click', () => {
+    if (!ensureTeacherAccess()) return;
     state.showReport[u.id] = !state.showReport[u.id];
     save();
     openUnit(i);
   });
-  $('#toggleAnswersBtn').addEventListener('click', () => {
+  const answersBtn = $('#toggleAnswersBtn');
+  if (answersBtn) answersBtn.addEventListener('click', () => {
+    if (!ensureTeacherAccess()) return;
     if (!state.teacherMode) return toast('Οι απαντήσεις εμφανίζονται μόνο στην προεπισκόπηση καθηγητή.');
     state.showAnswers[u.id] = !state.showAnswers[u.id];
     save();
@@ -1278,7 +1333,7 @@ function renderTeacherHub() {
 
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel teacher-hub">
-      <p class="eyebrow">Build 2.2 • Κέντρο καθηγητή</p>
+      <p class="eyebrow">Build 2.3 • Κέντρο καθηγητή</p>
       <h2>🧭 Πίνακας ελέγχου ύλης</h2>
       <p>Εδώ βλέπεις γρήγορα τι υπάρχει σε κάθε αποστολή, πόσες δοκιμασίες έχει, ποιοι άξονες ύλης καλύπτονται και πού βρίσκεται ο μαθητής.</p>
 
@@ -1323,7 +1378,7 @@ function renderTestGenerator() {
   featureStart();
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel test-generator">
-      <p class="eyebrow">Build 2.2 • Γεννήτρια</p>
+      <p class="eyebrow">Build 2.3 • Γεννήτρια</p>
       <h2>📝 Γεννήτρια τεστ / φύλλου εργασίας</h2>
       <p>Διάλεξε ενότητες, τύπους ασκήσεων και αριθμό ερωτήσεων. Η εφαρμογή φτιάχνει άμεσα εκτυπώσιμο φύλλο εργασίας από το υλικό της Ακαδημίας.</p>
 
@@ -1419,7 +1474,7 @@ function renderClassroomMode() {
   classroomSession = { deck: [], index: 0, showAnswer: false, scores: classroomSession.scores || { a: 0, b: 0 } };
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel classroom-mode">
-      <p class="eyebrow">Build 2.2 • Προβολή τάξης</p>
+      <p class="eyebrow">Build 2.3 • Προβολή τάξης</p>
       <h2>🎲 Λειτουργία τάξης</h2>
       <p>Γρήγορος γύρος για διαδραστικό πίνακα ή προφορική επανάληψη. Διάλεξε ύλη, πάτα έναρξη και μοίρασε πόντους σε ομάδες.</p>
       <div class="classroom-controls">
@@ -1571,7 +1626,23 @@ $('#resetBtn').addEventListener('click', () => {
     location.reload();
   }
 });
+$('#teacherToolsBtn').addEventListener('click', () => {
+  if (!teacherToolsUnlocked()) {
+    requestTeacherAccess();
+    return;
+  }
+  const menu = $('#teacherToolsMenu');
+  menu.classList.toggle('hidden');
+});
+$('#lockTeacherToolsBtn').addEventListener('click', () => {
+  state.teacherMode = false;
+  setTeacherToolsUnlocked(false);
+  save();
+  render();
+  toast('Τα εργαλεία καθηγητή κλειδώθηκαν.');
+});
 $('#teacherPreviewBtn').addEventListener('click', () => {
+  if (!ensureTeacherAccess()) return;
   state.teacherMode = !state.teacherMode;
   save();
   render();
@@ -1580,13 +1651,13 @@ $('#teacherPreviewBtn').addEventListener('click', () => {
 $('#diagnosticBtn').addEventListener('click', renderDiagnosticCenter);
 $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
-$('#teacherHubBtn').addEventListener('click', renderTeacherHub);
-$('#testGeneratorBtn').addEventListener('click', renderTestGenerator);
-$('#classroomModeBtn').addEventListener('click', renderClassroomMode);
+$('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
+$('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
+$('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
 $('#randomChallengeBtn').addEventListener('click', openRandomUnsolved);
-$('#exportProgressBtn').addEventListener('click', exportProgress);
-$('#importProgressBtn').addEventListener('click', () => $('#importProgressFile').click());
-$('#importProgressFile').addEventListener('change', e => importProgressFromFile(e.target.files[0]));
+$('#exportProgressBtn').addEventListener('click', () => { if (ensureTeacherAccess()) exportProgress(); });
+$('#importProgressBtn').addEventListener('click', () => { if (ensureTeacherAccess()) $('#importProgressFile').click(); });
+$('#importProgressFile').addEventListener('change', e => { if (ensureTeacherAccess()) importProgressFromFile(e.target.files[0]); });
 $('#unitSearch').addEventListener('input', e => {
   mapSearch = e.target.value;
   renderMap();
