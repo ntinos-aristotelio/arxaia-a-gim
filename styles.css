@@ -838,3 +838,95 @@
 }
 @media(max-width:900px){.mentor-summary-grid,.mentor-weak-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.mentor-summary-grid,.mentor-weak-grid{grid-template-columns:1fr}}
+
+
+/* Build 2.6 - Daily Missions & Arena */
+.daily-panel, .arena-panel { position: relative; overflow: hidden; }
+.daily-panel::before, .arena-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at top right, rgba(199,163,90,.18), transparent 35%);
+}
+.daily-hero-grid, .mentor-summary-grid, .profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.daily-hero-grid > div, .arena-last, .daily-reward-box {
+  background: rgba(255,255,255,.55);
+  border: 1px solid rgba(199,163,90,.45);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 12px 30px rgba(16,24,39,.07);
+}
+.daily-hero-grid strong { display:block; font-size: 1.55rem; color: #735017; }
+.daily-hero-grid span, .arena-last span { display:block; color:#5f6470; font-size:.86rem; margin-top:4px; }
+.daily-missions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.daily-mission-card {
+  text-align: left;
+  border: 1px solid rgba(199,163,90,.55);
+  background: linear-gradient(145deg, rgba(255,249,232,.96), rgba(243,233,206,.86));
+  color: #172033;
+  border-radius: 18px;
+  padding: 14px;
+  min-height: 142px;
+  display: grid;
+  gap: 7px;
+  cursor: pointer;
+}
+.daily-mission-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(31,38,53,.12); }
+.daily-mission-card.done { border-color: rgba(88,132,77,.7); background: linear-gradient(145deg, rgba(238,250,231,.96), rgba(243,233,206,.78)); }
+.mission-number {
+  width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center;
+  background: #172033; color: #f7e8b6; font-weight: 800;
+}
+.daily-mission-card em { color:#735017; font-style: normal; font-size: .84rem; }
+.daily-reward-box button:disabled { opacity: .45; cursor: not-allowed; }
+.arena-setup, .classroom-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0;
+}
+.arena-setup label { display:grid; gap:6px; color:#3d4656; font-weight:700; }
+.arena-setup select, .arena-fill input {
+  border: 1px solid rgba(199,163,90,.6);
+  background: rgba(255,255,255,.78);
+  border-radius: 14px;
+  padding: 11px 12px;
+  font: inherit;
+  color:#172033;
+}
+.arena-stage {
+  margin-top: 16px;
+  border: 1px solid rgba(199,163,90,.45);
+  border-radius: 20px;
+  background: rgba(255,255,255,.54);
+  padding: 18px;
+}
+.arena-scoreline { display:flex; justify-content:space-between; gap:12px; color:#735017; font-weight:800; margin-bottom:12px; }
+.arena-question h3 { margin-top: 8px; }
+.arena-options { display:grid; gap:10px; margin:14px 0; }
+.arena-options button {
+  text-align:left; background:#fffaf0; color:#172033; border:1px solid rgba(199,163,90,.55); border-radius:14px; padding:12px;
+}
+.arena-options button:hover { background:#f5e4b7; }
+.arena-fill { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
+.arena-fill input { flex: 1 1 220px; }
+.arena-result { display:grid; gap:6px; border-radius:16px; padding:14px; margin-top:12px; }
+.arena-result.ok, .arena-review-list .ok { background:rgba(108,150,82,.16); border:1px solid rgba(108,150,82,.35); }
+.arena-result.bad, .arena-review-list .bad { background:rgba(169,84,64,.13); border:1px solid rgba(169,84,64,.32); }
+.arena-final-score { font-size: 2rem; font-weight: 900; color:#735017; }
+.arena-final-score span { font-size: 1rem; color:#5f6470; }
+.arena-review-list { display:grid; gap:8px; margin:14px 0; }
+.arena-review-list div { border-radius:14px; padding:10px; display:grid; gap:4px; }
+.arena-review-list span { font-size:.9rem; color:#3d4656; }

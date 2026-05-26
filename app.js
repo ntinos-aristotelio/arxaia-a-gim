@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_5';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_5';
+const stateKey = 'akadimiaArxaionProgressV2_6';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_6';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -23,6 +23,10 @@ const defaultState = {
   bookmarks: {},
   hintsUsed: {},
   mentorSessions: [],
+  dailyClaims: {},
+  dailyStreak: 0,
+  lastDailyClaim: '',
+  challengeHistory: [],
   teacherPrefs: {}
 };
 
@@ -45,11 +49,16 @@ state.unitNotes = state.unitNotes || {};
 state.bookmarks = state.bookmarks || {};
 state.hintsUsed = state.hintsUsed || {};
 state.mentorSessions = state.mentorSessions || [];
+state.dailyClaims = state.dailyClaims || {};
+state.dailyStreak = state.dailyStreak || 0;
+state.lastDailyClaim = state.lastDailyClaim || '';
+state.challengeHistory = state.challengeHistory || [];
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
 let mapSearch = '';
 let classroomSession = { deck: [], index: 0, showAnswer: false, scores: { a: 0, b: 0 } };
+let challengeSession = { deck: [], index: 0, score: 0, answered: false, results: [] };
 
 function save() {
   localStorage.setItem(stateKey, JSON.stringify(state));
@@ -232,7 +241,7 @@ function renderStats() {
   $('#overallProgress').innerHTML = `
     <div class="mini-label">Συνολική πορεία</div>
     <div class="course-meter"><span style="width:${coursePercent()}%"></span></div>
-    <strong>${solved}/${total}</strong> δοκιμασίες λυμένες • <strong>${Object.keys(state.completed).length}/${ACADEMY_UNITS.length}</strong> περιοχές σφραγισμένες • <strong>${mistakeTotal()}</strong> λάθη προς επανάληψη
+    <strong>${solved}/${total}</strong> δοκιμασίες λυμένες • <strong>${Object.keys(state.completed).length}/${ACADEMY_UNITS.length}</strong> περιοχές σφραγισμένες • <strong>${mistakeTotal()}</strong> λάθη προς επανάληψη • <strong>${state.dailyStreak || 0}</strong> ημερήσιο σερί
   `;
 
   const hint = solved === 0
@@ -1221,6 +1230,265 @@ function buildStudyPlan() {
   });
 }
 
+
+function dayStamp(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function seedFromString(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function seededShuffle(items, seedText) {
+  let seed = seedFromString(seedText || 'akadimia');
+  const arr = items.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const j = seed % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function daysBetween(a, b) {
+  if (!a || !b) return 999;
+  const da = new Date(a + 'T00:00:00');
+  const db = new Date(b + 'T00:00:00');
+  return Math.round((db - da) / 86400000);
+}
+
+function dailyMissionRefs(count = 6) {
+  const today = dayStamp();
+  const unlocked = allExerciseRefs().filter(ref => isUnlocked(ref.unitIndex));
+  const mistakes = topMistakeRefs(10).filter(ref => isUnlocked(ref.unitIndex));
+  const unsolved = unlocked.filter(ref => !state.answers[ref.id]);
+  const normal = unlocked.filter(ref => ref.ex.type !== 'duel');
+  const pool = uniqueRefs([...mistakes, ...unsolved, ...normal, ...unlocked]);
+  return seededShuffle(pool, `${today}:${state.name || 'student'}:daily`).slice(0, count);
+}
+
+function renderDailyMissions() {
+  featureStart();
+  const today = dayStamp();
+  const refs = dailyMissionRefs(6);
+  const solved = refs.filter(ref => state.answers[ref.id]).length;
+  const claimed = !!state.dailyClaims[today];
+  const percent = refs.length ? Math.round((solved / refs.length) * 100) : 0;
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel daily-panel">
+      <p class="eyebrow">Build 2.6 • Ημερήσιες αποστολές</p>
+      <h2>☀️ Ημερήσιες αποστολές</h2>
+      <p>Κάθε μέρα η Ακαδημία προτείνει λίγες στοχευμένες δοκιμασίες. Στόχος δεν είναι η ποσότητα· είναι να επιστρέφει ο μαθητής συχνά και να χτίζει σταθερή πρόοδο.</p>
+
+      <div class="daily-hero-grid">
+        <div><strong>${solved}/${refs.length}</strong><span>σημερινές δοκιμασίες</span></div>
+        <div><strong>${percent}%</strong><span>πρόοδος ημέρας</span></div>
+        <div><strong>${state.dailyStreak || 0}</strong><span>ημερήσιο σερί</span></div>
+        <div><strong>${claimed ? '✓' : '—'}</strong><span>ανταμοιβή ημέρας</span></div>
+      </div>
+      <div class="course-meter large"><span style="width:${percent}%"></span></div>
+
+      <section class="daily-missions-list">
+        ${refs.map((ref, i) => `
+          <button class="daily-mission-card review-item ${state.answers[ref.id] ? 'done' : ''}" data-unit="${ref.unitIndex}" data-idx="${ref.idx}">
+            <span class="mission-number">${i + 1}</span>
+            <strong>${escapeHTML(ref.ex.title)}</strong>
+            <small>${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</small>
+            <em>${state.answers[ref.id] ? 'Λύθηκε σήμερα ή παλιότερα' : 'Άνοιγμα δοκιμασίας'}</em>
+          </button>
+        `).join('')}
+      </section>
+
+      <section class="daily-reward-box">
+        <h3>🏺 Ανταμοιβή ημέρας</h3>
+        <p>Λύσε τουλάχιστον <strong>3 από τις 6</strong> σημερινές αποστολές και κέρδισε bonus XP, οβολούς και σερί ημέρας.</p>
+        <button id="claimDailyRewardBtn" ${solved >= 3 && !claimed ? '' : 'disabled'}>${claimed ? 'Η ανταμοιβή έχει δοθεί' : 'Σφράγισε την ημέρα'}</button>
+      </section>
+    </article>
+  `;
+  bindReviewOpenButtons();
+  $('#claimDailyRewardBtn').addEventListener('click', claimDailyReward);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function claimDailyReward() {
+  const today = dayStamp();
+  const refs = dailyMissionRefs(6);
+  const solved = refs.filter(ref => state.answers[ref.id]).length;
+  if (state.dailyClaims[today]) return toast('Η σημερινή ανταμοιβή έχει ήδη δοθεί.');
+  if (solved < 3) return toast('Χρειάζονται τουλάχιστον 3 λυμένες ημερήσιες αποστολές.');
+  const gap = daysBetween(state.lastDailyClaim, today);
+  state.dailyStreak = gap === 1 ? Number(state.dailyStreak || 0) + 1 : 1;
+  state.lastDailyClaim = today;
+  state.dailyClaims[today] = true;
+  state.xp += 80;
+  state.coins += 12;
+  addBadge('Ημερήσιος Περιηγητής');
+  if (state.dailyStreak >= 3) addBadge('Τριήμερο Σερί Ακαδημίας');
+  if (state.dailyStreak >= 7) addBadge('Εβδομαδιαίος Φύλακας');
+  save();
+  renderStats();
+  renderDailyMissions();
+  toast('Η ημέρα σφραγίστηκε: +80 XP και +12 οβολοί.');
+}
+
+function arenaPool(mode, count) {
+  const baseTypes = new Set(['choice', 'fill']);
+  const all = allExerciseRefs().filter(ref => baseTypes.has(ref.ex.type) && isUnlocked(ref.unitIndex));
+  let pool = all;
+  if (mode === 'unsolved') pool = all.filter(ref => !state.answers[ref.id]);
+  if (mode === 'mistakes') {
+    const mistakeIds = new Set(Object.keys(state.mistakes || {}));
+    pool = all.filter(ref => mistakeIds.has(ref.id));
+  }
+  if (pool.length < count) pool = uniqueRefs([...pool, ...all]);
+  return shuffle(pool).slice(0, count);
+}
+
+function renderChallengeArena() {
+  featureStart();
+  const history = state.challengeHistory || [];
+  const last = history[0];
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel arena-panel">
+      <p class="eyebrow">Build 2.6 • Γρήγορη επανάληψη</p>
+      <h2>⚔️ Αρένα επανάληψης</h2>
+      <p>Μικρή μονομαχία 5-15 ερωτήσεων για γρήγορη επανάληψη. Ιδανική για το τέλος του μαθήματος ή για προσωπική προπόνηση στο σπίτι.</p>
+      <div class="arena-setup">
+        <label><span>Ερωτήσεις</span><select id="arenaCount"><option value="5">5 γρήγορες</option><option value="10" selected>10 κανονικές</option><option value="15">15 απαιτητικές</option></select></label>
+        <label><span>Εστίαση</span><select id="arenaMode"><option value="mixed">Μικτή ύλη</option><option value="unsolved">Άλυτες δοκιμασίες</option><option value="mistakes">Λάθη μαθητή</option></select></label>
+        <button id="startArenaBtn">Έναρξη αρένας</button>
+      </div>
+      <div class="arena-last">
+        <strong>Τελευταία προσπάθεια</strong>
+        <span>${last ? `${last.score}/${last.total} • ${new Date(last.date).toLocaleDateString('el-GR')}` : 'Δεν υπάρχει ακόμη ιστορικό αρένας.'}</span>
+      </div>
+      <div id="arenaStage" class="arena-stage empty-state">Διάλεξε ρυθμίσεις και ξεκίνα.</div>
+    </article>
+  `;
+  $('#startArenaBtn').addEventListener('click', startChallengeArena);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function startChallengeArena() {
+  const count = Math.max(5, Math.min(15, Number($('#arenaCount').value) || 10));
+  const mode = $('#arenaMode').value;
+  const deck = arenaPool(mode, count);
+  if (!deck.length) return toast('Δεν βρέθηκαν κατάλληλες ερωτήσεις για την αρένα.');
+  challengeSession = { deck, index: 0, score: 0, answered: false, results: [], mode };
+  renderChallengeStage();
+}
+
+function renderChallengeStage() {
+  const stage = $('#arenaStage');
+  const ref = challengeSession.deck[challengeSession.index];
+  if (!stage) return;
+  if (!ref) {
+    finishChallengeArena();
+    return;
+  }
+  stage.className = 'arena-stage';
+  stage.innerHTML = `
+    <div class="arena-scoreline">
+      <span>Ερώτηση ${challengeSession.index + 1}/${challengeSession.deck.length}</span>
+      <span>Σκορ: <strong>${challengeSession.score}</strong></span>
+    </div>
+    <section class="arena-question">
+      <div class="test-meta">${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</div>
+      <h3>${escapeHTML(ref.ex.title)}</h3>
+      ${arenaQuestionBody(ref)}
+      <div id="arenaFeedback" class="arena-feedback"></div>
+    </section>
+  `;
+  bindArenaQuestion(ref);
+}
+
+function arenaQuestionBody(ref) {
+  const ex = ref.ex;
+  if (ex.type === 'choice') {
+    return `<p>${escapeHTML(ex.prompt)}</p><div class="arena-options">${ex.options.map((o, i) => `<button data-a="${i}">${escapeHTML(o)}</button>`).join('')}</div>`;
+  }
+  if (ex.type === 'fill') {
+    return `<p>${escapeHTML(ex.prompt)}</p><div class="arena-fill"><input id="arenaFillInput" placeholder="γράψε απάντηση"><button id="arenaFillCheck">Έλεγχος</button></div>`;
+  }
+  return `<p>${escapeHTML(ex.prompt || 'Απάντησε προφορικά.')}</p>`;
+}
+
+function bindArenaQuestion(ref) {
+  if (ref.ex.type === 'choice') {
+    $$('#arenaStage .arena-options button').forEach(btn => btn.addEventListener('click', () => answerArena(ref, Number(btn.dataset.a) === ref.ex.answer)));
+  }
+  if (ref.ex.type === 'fill') {
+    $('#arenaFillCheck').addEventListener('click', () => {
+      const val = normalize($('#arenaFillInput').value);
+      const accepted = Array.isArray(ref.ex.answer) ? ref.ex.answer : [ref.ex.answer];
+      const ok = accepted.some(a => val === normalize(a));
+      answerArena(ref, ok);
+    });
+    $('#arenaFillInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#arenaFillCheck').click(); });
+  }
+}
+
+function answerArena(ref, ok) {
+  if (challengeSession.answered) return;
+  challengeSession.answered = true;
+  if (ok) {
+    challengeSession.score += 1;
+    award(ref.id, 12);
+  } else {
+    miss(ref.id);
+  }
+  challengeSession.results.push({ id: ref.id, ok, title: ref.ex.title, unit: ref.u.place, answer: answerHTML(ref.ex) });
+  const feedback = $('#arenaFeedback');
+  feedback.innerHTML = `
+    <div class="arena-result ${ok ? 'ok' : 'bad'}">
+      <strong>${ok ? 'Σωστό!' : 'Όχι ακόμα.'}</strong>
+      <span>Απάντηση: ${answerHTML(ref.ex)}</span>
+      <button id="nextArenaQuestion">${challengeSession.index + 1 >= challengeSession.deck.length ? 'Τέλος αρένας' : 'Επόμενη ερώτηση'}</button>
+    </div>
+  `;
+  $('#nextArenaQuestion').addEventListener('click', () => {
+    challengeSession.index += 1;
+    challengeSession.answered = false;
+    renderChallengeStage();
+  });
+}
+
+function finishChallengeArena() {
+  const total = challengeSession.deck.length;
+  const score = challengeSession.score;
+  const percent = total ? Math.round(score / total * 100) : 0;
+  state.challengeHistory.unshift({ date: new Date().toISOString(), score, total, percent, mode: challengeSession.mode });
+  state.challengeHistory = state.challengeHistory.slice(0, 12);
+  if (percent >= 80) addBadge('Μονομάχος Επανάληψης');
+  save();
+  $('#arenaStage').className = 'arena-stage arena-finish';
+  $('#arenaStage').innerHTML = `
+    <h3>Τέλος αρένας</h3>
+    <div class="arena-final-score">${score}/${total} <span>${percent}%</span></div>
+    <p>${percent >= 80 ? 'Εξαιρετική μονομαχία. Η Ακαδημία σε αναγνωρίζει.' : percent >= 50 ? 'Καλή προσπάθεια. Δες τα λάθη και ξαναμπες στην αρένα.' : 'Θέλει επανάληψη. Ο Μέντορας μπορεί να σε βοηθήσει με μικρότερη διαδρομή.'}</p>
+    <section class="arena-review-list">
+      ${challengeSession.results.map((r, i) => `<div class="${r.ok ? 'ok' : 'bad'}"><strong>${i + 1}. ${escapeHTML(r.title)}</strong><span>${escapeHTML(r.unit)} • ${r.ok ? 'Σωστό' : 'Λάθος'} • Απάντηση: ${r.answer}</span></div>`).join('')}
+    </section>
+    <div class="feature-actions-row">
+      <button id="restartArenaBtn">Νέα αρένα</button>
+      <button id="arenaMentorBtn" class="ghost-tool">Άνοιγμα Μέντορα</button>
+    </div>
+  `;
+  $('#restartArenaBtn').addEventListener('click', startChallengeArena);
+  $('#arenaMentorBtn').addEventListener('click', renderAcademyMentor);
+  renderStats();
+}
+
 function copyStudyPlan(plan) {
   const text = plan.map((day, i) => `Ημέρα ${i + 1}: ${day.title}\n- ${day.tasks.join('\n- ')}`).join('\n\n');
   if (navigator.clipboard) {
@@ -1251,7 +1519,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.5',
+    build: '2.6',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1266,7 +1534,11 @@ function exportProgress() {
     notes: state.unitNotes,
     bookmarks: state.bookmarks,
     hintsUsed: state.hintsUsed,
-    mentorSessions: state.mentorSessions
+    mentorSessions: state.mentorSessions,
+    dailyClaims: state.dailyClaims,
+    dailyStreak: state.dailyStreak,
+    lastDailyClaim: state.lastDailyClaim,
+    challengeHistory: state.challengeHistory
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2022,6 +2294,10 @@ function importProgressFromFile(file) {
       if (payload.bookmarks && typeof payload.bookmarks === 'object') next.bookmarks = payload.bookmarks;
       if (payload.hintsUsed && typeof payload.hintsUsed === 'object') next.hintsUsed = payload.hintsUsed;
       if (Array.isArray(payload.mentorSessions)) next.mentorSessions = payload.mentorSessions;
+      if (payload.dailyClaims && typeof payload.dailyClaims === 'object') next.dailyClaims = payload.dailyClaims;
+      if (payload.dailyStreak !== undefined) next.dailyStreak = Number(payload.dailyStreak) || 0;
+      if (payload.lastDailyClaim) next.lastDailyClaim = payload.lastDailyClaim;
+      if (Array.isArray(payload.challengeHistory)) next.challengeHistory = payload.challengeHistory;
       state = next;
       save();
       toast('Η πρόοδος εισήχθη.');
@@ -2103,6 +2379,8 @@ $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
 $('#studentProfileBtn').addEventListener('click', renderStudentProfile);
 $('#academyMentorBtn').addEventListener('click', renderAcademyMentor);
+$('#dailyMissionsBtn').addEventListener('click', renderDailyMissions);
+$('#challengeArenaBtn').addEventListener('click', renderChallengeArena);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
