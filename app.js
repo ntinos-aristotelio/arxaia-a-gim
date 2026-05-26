@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_7';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_7';
+const stateKey = 'akadimiaArxaionProgressV2_8';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_8';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -29,6 +29,8 @@ const defaultState = {
   challengeHistory: [],
   masteredTheory: {},
   favoriteTheory: {},
+  learningPathClaims: {},
+  activeLearningPath: 'first_steps',
   teacherPrefs: {}
 };
 
@@ -57,12 +59,83 @@ state.lastDailyClaim = state.lastDailyClaim || '';
 state.challengeHistory = state.challengeHistory || [];
 state.masteredTheory = state.masteredTheory || {};
 state.favoriteTheory = state.favoriteTheory || {};
+state.learningPathClaims = state.learningPathClaims || {};
+state.activeLearningPath = state.activeLearningPath || 'first_steps';
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
 let mapSearch = '';
 let classroomSession = { deck: [], index: 0, showAnswer: false, scores: { a: 0, b: 0 } };
 let challengeSession = { deck: [], index: 0, score: 0, answered: false, results: [] };
+
+const LEARNING_PATHS = [
+  {
+    id: 'first_steps',
+    icon: '🕰️',
+    title: 'Πρώτα βήματα στην Ακαδημία',
+    subtitle: 'Για μαθητές που ξεκινούν: λέξεις, σχολείο, φθόγγοι και απλές παρατηρήσεις.',
+    focus: ['Κατανόηση κειμένου', 'Φθόγγοι - τονισμός'],
+    unitIds: ['enotita1_words_time', 'enotita2_paideia', 'athens'],
+    types: ['choice', 'fill', 'match', 'sort'],
+    limit: 18,
+    reward: 120
+  },
+  {
+    id: 'grammar_core',
+    icon: '📜',
+    title: 'Γραμματική βάση',
+    subtitle: 'Φθόγγοι, εἰμί, ουσιαστικά, πτώσεις και πρώτοι ρηματικοί τύποι.',
+    focus: ['Φθόγγοι - τονισμός', 'Ρήματα', 'Κλίσεις'],
+    unitIds: ['athens', 'delphi', 'olympia', 'sparta'],
+    types: ['choice', 'fill', 'tablefill', 'sort', 'match'],
+    limit: 24,
+    reward: 150
+  },
+  {
+    id: 'lexicon_roots',
+    icon: '📚',
+    title: 'Λεξιλόγιο και οικογένειες λέξεων',
+    subtitle: 'Ρίζες, παραγωγή, σύνθεση και νεοελληνικές συγγένειες.',
+    focus: ['Λεξιλόγιο'],
+    unitIds: ['enotita3_epaggelmata', 'enotita4_fellopodes', 'enotita5_attiki_gi', 'enotita6_omorfia', 'enotita7_gordios_desmos', 'enotita8_moiraio_lathos', 'enotita9_anypervlita_protypa', 'enotita10_sokratis_filia', 'alexandria'],
+    types: ['choice', 'fill', 'match'],
+    limit: 24,
+    reward: 150
+  },
+  {
+    id: 'verb_forge',
+    icon: '⚒️',
+    title: 'Σιδηρουργείο ρημάτων',
+    subtitle: 'Ενεστώτας, μέλλοντας, παρατατικός, αόριστος, παρακείμενος και αναδιπλασιασμός.',
+    focus: ['Ρήματα'],
+    unitIds: ['enotita5_attiki_gi', 'enotita7_gordios_desmos', 'enotita9_anypervlita_protypa', 'delphi', 'sparta', 'megali_epanalipsi_pyles_akadimias'],
+    types: ['choice', 'fill', 'tablefill', 'sort', 'duel'],
+    limit: 24,
+    reward: 170
+  },
+  {
+    id: 'text_syntax',
+    icon: '🧠',
+    title: 'Μετάφραση και σύνταξη',
+    subtitle: 'Κατανόηση κειμένου, ρήμα, υποκείμενο, αντικείμενο και κατηγορούμενο.',
+    focus: ['Κατανόηση κειμένου', 'Σύνταξη'],
+    unitIds: ['enotita2_paideia', 'enotita4_fellopodes', 'enotita6_omorfia', 'enotita7_gordios_desmos', 'enotita9_anypervlita_protypa', 'enotita10_sokratis_filia', 'megali_epanalipsi_pyles_akadimias'],
+    types: ['choice', 'fill', 'match', 'sort', 'duel'],
+    limit: 22,
+    reward: 160
+  },
+  {
+    id: 'final_preparation',
+    icon: '🏛️',
+    title: 'Πριν από διαγώνισμα',
+    subtitle: 'Μικτή επανάληψη με προτεραιότητα σε λάθη, άλυτες δοκιμασίες και τελικές πύλες.',
+    focus: ['Γενική επανάληψη'],
+    unitIds: [],
+    types: ['choice', 'fill', 'tablefill', 'match', 'sort', 'duel'],
+    limit: 30,
+    reward: 200
+  }
+];
 
 function save() {
   localStorage.setItem(stateKey, JSON.stringify(state));
@@ -2635,6 +2708,150 @@ function renderCertificate() {
   $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+
+function pathDefinition(id) {
+  return LEARNING_PATHS.find(p => p.id === id) || LEARNING_PATHS[0];
+}
+
+function pathRefs(path) {
+  let refs = allExerciseRefs().filter(ref => isUnlocked(ref.unitIndex));
+  const unitSet = new Set(path.unitIds || []);
+  const typeSet = new Set(path.types || []);
+  if (unitSet.size) refs = refs.filter(ref => unitSet.has(ref.u.id));
+  if (typeSet.size) refs = refs.filter(ref => typeSet.has(ref.ex.type));
+  if (path.focus && path.focus.length && !unitSet.size) {
+    refs = refs.filter(ref => path.focus.some(tag => learningTags(ref.u).includes(tag)) || path.focus.includes('Γενική επανάληψη'));
+  }
+  if (path.id === 'final_preparation') {
+    const mistakes = topMistakeRefs(10).filter(ref => isUnlocked(ref.unitIndex));
+    const unsolved = refs.filter(ref => !state.answers[ref.id]);
+    const final = refs.filter(ref => ref.u.id === 'megali_epanalipsi_pyles_akadimias');
+    refs = uniqueRefs([...mistakes, ...unsolved, ...final, ...refs]);
+  }
+  return uniqueRefs(refs).slice(0, path.limit || 20);
+}
+
+function pathStats(path) {
+  const refs = pathRefs(path);
+  const solved = refs.filter(ref => state.answers[ref.id]).length;
+  const total = refs.length;
+  const percent = total ? Math.round((solved / total) * 100) : 0;
+  const next = refs.find(ref => !state.answers[ref.id]) || refs[0] || null;
+  return { refs, solved, total, percent, next };
+}
+
+function pathStatusLabel(percent) {
+  if (percent >= 100) return 'Ολοκληρωμένη';
+  if (percent >= 70) return 'Έτοιμη για σφραγίδα';
+  if (percent >= 35) return 'Σε καλή πορεία';
+  if (percent > 0) return 'Ξεκίνησε';
+  return 'Δεν ξεκίνησε';
+}
+
+function renderLearningPaths() {
+  const active = pathDefinition(state.activeLearningPath);
+  const activeStats = pathStats(active);
+  const pathCards = LEARNING_PATHS.map(path => {
+    const stats = pathStats(path);
+    const claimed = !!state.learningPathClaims[path.id];
+    return `
+      <button class="path-card ${path.id === active.id ? 'active-path' : ''}" data-path-id="${path.id}">
+        <div class="path-card-top"><span class="path-icon">${path.icon}</span><strong>${escapeHTML(path.title)}</strong></div>
+        <p>${escapeHTML(path.subtitle)}</p>
+        <div class="mini-progress"><span style="width:${stats.percent}%"></span></div>
+        <small>${stats.solved}/${stats.total} βήματα • ${pathStatusLabel(stats.percent)}${claimed ? ' • σφραγισμένη' : ''}</small>
+      </button>
+    `;
+  }).join('');
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel path-panel">
+      <p class="eyebrow">Build 2.8 • Διαδρομές μάθησης</p>
+      <h2>🧭 Διαδρομές Μαθητή</h2>
+      <p>Οι 365 δοκιμασίες οργανώνονται σε έτοιμες πορείες. Ο μαθητής δεν χάνεται μέσα στην ύλη· ακολουθεί μικρές διαδρομές με στόχο, πρόοδο και σφραγίδα ολοκλήρωσης.</p>
+      <div class="path-overview-grid">
+        ${pathCards}
+      </div>
+      ${learningPathDetailHTML(active, activeStats)}
+    </article>
+  `;
+
+  $$('.path-card').forEach(btn => btn.addEventListener('click', () => {
+    state.activeLearningPath = btn.dataset.pathId;
+    save();
+    renderLearningPaths();
+  }));
+  const nextBtn = $('#openNextPathStep');
+  if (nextBtn) nextBtn.addEventListener('click', () => openExerciseRef(activeStats.next, 'all'));
+  $$('.open-path-ref').forEach(btn => btn.addEventListener('click', () => {
+    const ref = activeStats.refs[Number(btn.dataset.refIndex)];
+    openExerciseRef(ref, 'all');
+  }));
+  const claimBtn = $('#claimLearningPathBtn');
+  if (claimBtn) claimBtn.addEventListener('click', () => claimLearningPath(active.id));
+}
+
+function learningPathDetailHTML(path, stats) {
+  const claimed = !!state.learningPathClaims[path.id];
+  const canClaim = stats.percent >= 70 && !claimed;
+  const visibleRefs = stats.refs.slice(0, 16);
+  const focus = (path.focus || []).map(t => `<span>${escapeHTML(t)}</span>`).join('');
+  return `
+    <section class="active-path-detail">
+      <div class="path-detail-head">
+        <div>
+          <p class="eyebrow">Ενεργή διαδρομή</p>
+          <h3>${path.icon} ${escapeHTML(path.title)}</h3>
+          <p>${escapeHTML(path.subtitle)}</p>
+        </div>
+        <div class="path-score">
+          <strong>${stats.percent}%</strong>
+          <span>${stats.solved}/${stats.total} βήματα</span>
+        </div>
+      </div>
+      <div class="unit-tags">${focus}</div>
+      <div class="path-actions">
+        <button id="openNextPathStep" ${!stats.next ? 'disabled' : ''}>Άνοιγμα επόμενου βήματος</button>
+        <button id="claimLearningPathBtn" class="ghost-tool" ${canClaim ? '' : 'disabled'}>${claimed ? 'Η διαδρομή σφραγίστηκε' : 'Σφράγισε τη διαδρομή'}</button>
+      </div>
+      <div class="path-guidance">
+        <strong>Πώς τη χρησιμοποιεί ο μαθητής:</strong>
+        <span>1. ανοίγει το επόμενο βήμα</span>
+        <span>2. λύνει 2-4 δοκιμασίες</span>
+        <span>3. γυρίζει στη διαδρομή</span>
+        <span>4. όταν φτάσει 70%, παίρνει σφραγίδα</span>
+      </div>
+      <div class="path-step-list">
+        ${visibleRefs.map((ref, i) => `
+          <div class="path-step-row ${state.answers[ref.id] ? 'path-done' : ''}">
+            <div>
+              <strong>${i + 1}. ${escapeHTML(ref.ex.title)}</strong>
+              <span>${escapeHTML(ref.u.place)} • ${escapeHTML(exerciseTypeLabel(ref.ex.type))}</span>
+            </div>
+            <button class="open-path-ref ghost-tool" data-ref-index="${i}">${state.answers[ref.id] ? 'Επανάληψη' : 'Άνοιγμα'}</button>
+          </div>
+        `).join('')}
+      </div>
+      ${stats.refs.length > visibleRefs.length ? `<p class="source">Εμφανίζονται τα πρώτα ${visibleRefs.length} βήματα. Η πρόοδος υπολογίζεται σε όλη τη διαδρομή.</p>` : ''}
+    </section>
+  `;
+}
+
+function claimLearningPath(pathId) {
+  const path = pathDefinition(pathId);
+  const stats = pathStats(path);
+  if (state.learningPathClaims[path.id]) return toast('Αυτή η διαδρομή έχει ήδη σφραγιστεί.');
+  if (stats.percent < 70) return toast('Χρειάζεται τουλάχιστον 70% πρόοδος για σφραγίδα διαδρομής.');
+  state.learningPathClaims[path.id] = new Date().toISOString();
+  state.xp += path.reward || 120;
+  state.coins += 18;
+  addBadge('Σφραγίδα Διαδρομής: ' + path.title);
+  save();
+  render();
+  renderLearningPaths();
+  toast('Σφραγίστηκε η διαδρομή! +' + (path.reward || 120) + ' XP');
+}
+
 function normalize(s) {
   return (s || '')
     .toLowerCase()
@@ -2686,6 +2903,7 @@ $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
 $('#studentProfileBtn').addEventListener('click', renderStudentProfile);
 $('#academyMentorBtn').addEventListener('click', renderAcademyMentor);
+$('#learningPathsBtn').addEventListener('click', renderLearningPaths);
 $('#dailyMissionsBtn').addEventListener('click', renderDailyMissions);
 $('#challengeArenaBtn').addEventListener('click', renderChallengeArena);
 $('#knowledgeLibraryBtn').addEventListener('click', renderKnowledgeLibrary);

@@ -995,3 +995,127 @@
   body:has(.certificate-panel) .lesson-card { box-shadow:none; border:none; background:white; }
   body:has(.certificate-panel) .certificate-sheet { max-width:none; margin:0; border:none; padding:0; }
 }
+
+
+/* Build 2.8 - Διαδρομές μαθητή */
+.path-panel { overflow: hidden; }
+.path-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 18px 0 22px;
+}
+.path-card {
+  text-align: left;
+  border: 1px solid rgba(166, 126, 62, .35);
+  background: linear-gradient(135deg, rgba(255,248,229,.92), rgba(239,226,196,.82));
+  border-radius: 18px;
+  padding: 16px;
+  color: #1d2a3a;
+  box-shadow: 0 10px 24px rgba(38, 28, 12, .08);
+}
+.path-card:hover,
+.path-card.active-path {
+  transform: translateY(-2px);
+  border-color: #b9862f;
+  box-shadow: 0 14px 30px rgba(45, 33, 10, .14);
+}
+.path-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.path-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(28, 46, 69, .12);
+  font-size: 1.25rem;
+}
+.path-card p { margin: 0 0 12px; font-size: .92rem; line-height: 1.45; }
+.mini-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(29, 42, 58, .15);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.mini-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #b9862f, #dfbf73);
+  border-radius: 999px;
+}
+.active-path-detail {
+  margin-top: 10px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(166, 126, 62, .35);
+  background: rgba(255, 252, 241, .76);
+}
+.path-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.path-score {
+  min-width: 110px;
+  border-radius: 16px;
+  padding: 12px;
+  text-align: center;
+  background: #172033;
+  color: #fff8df;
+}
+.path-score strong { display: block; font-size: 1.7rem; }
+.path-score span { font-size: .82rem; opacity: .9; }
+.path-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+.path-actions button:disabled,
+.open-path-ref:disabled { opacity: .55; cursor: not-allowed; }
+.path-guidance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+  font-size: .9rem;
+}
+.path-guidance strong { width: 100%; }
+.path-guidance span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(185, 134, 47, .12);
+  border: 1px solid rgba(185, 134, 47, .22);
+}
+.path-step-list {
+  display: grid;
+  gap: 10px;
+}
+.path-step-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(29, 42, 58, .08);
+}
+.path-step-row strong { display: block; }
+.path-step-row span { display: block; color: #5c6572; font-size: .86rem; margin-top: 3px; }
+.path-step-row.path-done {
+  background: rgba(117, 153, 96, .16);
+  border-color: rgba(117, 153, 96, .32);
+}
+@media (max-width: 720px) {
+  .path-detail-head, .path-step-row { flex-direction: column; align-items: stretch; }
+  .path-score { width: auto; }
+}
