@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_4';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_4';
+const stateKey = 'akadimiaArxaionProgressV2_5';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_5';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -21,6 +21,8 @@ const defaultState = {
   showReport: {},
   unitNotes: {},
   bookmarks: {},
+  hintsUsed: {},
+  mentorSessions: [],
   teacherPrefs: {}
 };
 
@@ -41,6 +43,8 @@ state.showAnswers = state.showAnswers || {};
 state.showReport = state.showReport || {};
 state.unitNotes = state.unitNotes || {};
 state.bookmarks = state.bookmarks || {};
+state.hintsUsed = state.hintsUsed || {};
+state.mentorSessions = state.mentorSessions || [];
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
@@ -647,14 +651,14 @@ function exerciseHTML(ex, unitId, idx) {
     <article class="exercise ${solved ? 'solved' : ''}" data-id="${id}" data-ex-index="${idx}" data-type="choice">
       ${meta}<h3>⚔️ ${escapeHTML(ex.title)}</h3><p>${escapeHTML(ex.prompt)}</p>
       <div class="options">${ex.options.map((o, i) => `<button class="option" data-a="${i}">${escapeHTML(o)}</button>`).join('')}</div>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   if (ex.type === 'fill') return `
     <article class="exercise ${solved ? 'solved' : ''}" data-id="${id}" data-ex-index="${idx}" data-type="fill">
       ${meta}<h3>📜 ${escapeHTML(ex.title)}</h3><p>${escapeHTML(ex.prompt)}</p>
       <input placeholder="γράψε απάντηση"><button class="checkFill">Έλεγχος</button><button class="ghost hint" style="color:#172033;border-color:#c7a35a">Υπόδειξη</button>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   if (ex.type === 'match') return `
@@ -664,7 +668,7 @@ function exerciseHTML(ex, unitId, idx) {
         <div>${ex.pairs.map((p, i) => `<div class="pill left" data-v="${i}">${escapeHTML(p[0])}</div>`).join('')}</div>
         <div>${shuffle(ex.pairs.map((p, i) => [p[1], i])).map(p => `<div class="pill right" data-v="${p[1]}">${escapeHTML(p[0])}</div>`).join('')}</div>
       </div>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   if (ex.type === 'sort') return `
@@ -672,7 +676,7 @@ function exerciseHTML(ex, unitId, idx) {
       ${meta}<h3>🏺 ${escapeHTML(ex.title)}</h3><p>${escapeHTML(ex.prompt || 'Πάτησε τις κάρτες με τη σωστή σειρά.')}</p>
       <div class="sort-list">${shuffle(ex.items).map(it => `<div class="sort-item">${escapeHTML(it)}</div>`).join('')}</div>
       <button class="checkSort">Έλεγχος σειράς</button>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   if (ex.type === 'tablefill') return `
@@ -680,7 +684,7 @@ function exerciseHTML(ex, unitId, idx) {
       ${meta}<h3>📋 ${escapeHTML(ex.title)}</h3><p>${escapeHTML(ex.prompt)}</p>
       <div class="table-fill">${ex.fields.map((f, i) => `<label><span>${escapeHTML(f.label)}</span><input data-field="${i}" placeholder="τύπος"></label>`).join('')}</div>
       <button class="checkTable">Σφράγισε πίνακα</button>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   if (ex.type === 'duel') return `
@@ -688,7 +692,7 @@ function exerciseHTML(ex, unitId, idx) {
       ${meta}<h3>🐍 ${escapeHTML(ex.title)}</h3><p>${escapeHTML(ex.prompt)}</p>
       <div class="boss-meter"><span style="width:100%"></span></div>
       <div class="duel-stage"><button class="startDuel">Ξεκίνα μονομαχία</button></div>
-      ${answerLine}<div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
+      ${answerLine}<button class="ghost-tool mentor-help">🧭 Βοήθεια μέντορα</button><div class="feedback">${solved ? '✓ Έχει λυθεί.' : ''}</div>
     </article>`;
 
   return '';
@@ -699,6 +703,8 @@ function bindExercises(u) {
     const idx = +card.dataset.exIndex;
     const ex = u.exercises[idx];
     const id = card.dataset.id;
+    const mentorBtn = card.querySelector('.mentor-help');
+    if (mentorBtn) mentorBtn.onclick = () => showExerciseMentor(card, ex, u, id);
 
     if (ex.type === 'choice') {
       card.querySelectorAll('.option').forEach(btn => btn.onclick = () => {
@@ -1245,7 +1251,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.4',
+    build: '2.5',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1258,7 +1264,9 @@ function exportProgress() {
     mistakes: state.mistakes,
     diagnostics: state.diagnosticHistory,
     notes: state.unitNotes,
-    bookmarks: state.bookmarks
+    bookmarks: state.bookmarks,
+    hintsUsed: state.hintsUsed,
+    mentorSessions: state.mentorSessions
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1407,6 +1415,237 @@ function toggleBookmark(unitId) {
   openUnit(idx, false);
 }
 
+
+function uniqueRefs(refs) {
+  const seen = new Set();
+  return refs.filter(ref => {
+    if (!ref || !ref.id || seen.has(ref.id)) return false;
+    seen.add(ref.id);
+    return true;
+  });
+}
+
+function refsForWeakTags(limit = 6) {
+  const weakTags = profileTagStats()
+    .filter(t => t.mistakes > 0 || t.percent < 55)
+    .sort((a, b) => b.mistakes - a.mistakes || a.percent - b.percent)
+    .map(t => t.tag);
+  const refs = [];
+  weakTags.forEach(tag => {
+    allExerciseRefs().forEach(ref => {
+      if (refs.length >= limit) return;
+      if (!isUnlocked(ref.unitIndex)) return;
+      if (state.answers[ref.id]) return;
+      if (learningTags(ref.u).includes(tag)) refs.push(ref);
+    });
+  });
+  return uniqueRefs(refs).slice(0, limit);
+}
+
+function mentorFocusRefs(limit = 8) {
+  const refs = [];
+  topMistakeRefs(4).forEach(ref => {
+    if (isUnlocked(ref.unitIndex)) refs.push(ref);
+  });
+
+  const missionIndex = currentMission();
+  const mission = ACADEMY_UNITS[missionIndex];
+  if (mission && isUnlocked(missionIndex)) {
+    const next = nextUnsolvedRef(mission);
+    if (next) refs.push(next);
+    allExerciseRefs()
+      .filter(ref => ref.u.id === mission.id && !state.answers[ref.id] && ref.ex.type !== 'duel')
+      .slice(0, 3)
+      .forEach(ref => refs.push(ref));
+    const boss = allExerciseRefs().find(ref => ref.u.id === mission.id && ref.ex.type === 'duel' && !state.answers[ref.id]);
+    if (boss) refs.push(boss);
+  }
+
+  refsForWeakTags(6).forEach(ref => refs.push(ref));
+
+  allExerciseRefs()
+    .filter(ref => isUnlocked(ref.unitIndex) && !state.answers[ref.id])
+    .slice(0, limit)
+    .forEach(ref => refs.push(ref));
+
+  return uniqueRefs(refs).slice(0, limit);
+}
+
+function mentorHeadline() {
+  const mistakes = mistakeTotal();
+  const solved = solvedExercises();
+  if (mistakes >= 8) return 'Σήμερα αξίζει να δουλέψεις πρώτα τα λάθη σου. Εκεί κρύβεται η μεγαλύτερη πρόοδος.';
+  if (solved < 25) return 'Ξεκίνα ήρεμα: λίγες κάρτες μικρομαθήματος, έπειτα 3-5 βασικές δοκιμασίες.';
+  if (coursePercent() >= 70) return 'Έχεις προχωρήσει πολύ. Τώρα χρειάζεται στοχευμένη επανάληψη και mini boss.';
+  return 'Η πορεία σου είναι καλή. Συνέχισε με την επόμενη άλυτη αποστολή και κράτα σημειώσεις.';
+}
+
+function mentorHintText(ex, u) {
+  const tags = learningTags(u);
+  const tips = [];
+  const full = normalize([ex.title, ex.prompt, u.title, u.source].join(' '));
+
+  if (ex.type === 'choice') tips.push('Μην κοιτάξεις πρώτα τις επιλογές. Διάβασε την ερώτηση και υπογράμμισε νοητά τη λέξη-κλειδί.');
+  if (ex.type === 'fill') tips.push('Σκέψου τι ζητάει το κενό: τύπο ρήματος, πτώση, κατάληξη ή σημασία λέξης.');
+  if (ex.type === 'match') tips.push('Ξεκίνα από τα ζευγάρια που ξέρεις σίγουρα και άφησε τα δύσκολα για το τέλος.');
+  if (ex.type === 'sort') tips.push('Ψάξε τη φυσική σειρά: πτώσεις, χρόνοι ή βήματα σκέψης. Μην πατάς τυχαία.');
+  if (ex.type === 'tablefill') tips.push('Συμπλήρωσε πρώτα τους τύπους που αναγνωρίζεις. Μετά έλεγξε αριθμό, πρόσωπο ή πτώση.');
+  if (ex.type === 'duel') tips.push('Στο mini boss κράτα ρυθμό: κάθε γύρος εξετάζει έναν βασικό κανόνα της ενότητας.');
+
+  if (tags.includes('Ρήματα') || /ειμι|λυω|αοριστ|παρατατικ|μελλοντ|παρακειμεν|αυξησ|αναδιπλασιασ/.test(full)) {
+    tips.push('Για ρήμα ρώτα με σειρά: ποιος χρόνος; ποιο πρόσωπο; ενικός ή πληθυντικός; υπάρχει αύξηση ή αναδιπλασιασμός;');
+  }
+  if (tags.includes('Κλίσεις') || /πτωσ|κλισ|ουσιαστικ|επιθετ|αντωνυμ|γενικη|δοτικη|αιτιατικη/.test(full)) {
+    tips.push('Για κλίση βρες πρώτα γένος και αριθμό. Μετά διάλεξε πτώση από την κατάληξη.');
+  }
+  if (tags.includes('Λεξιλόγιο') || /λεξ|ριζ|φωνη|γη|πατηρ|ελευθερ|κτημ|ζυγ/.test(full)) {
+    tips.push('Στο λεξιλόγιο ψάξε τη ρίζα. Μια γνωστή νεοελληνική λέξη συχνά ανοίγει τη σημασία.');
+  }
+  if (tags.includes('Σύνταξη') || /υποκειμεν|αντικειμεν|κατηγορουμεν|συνδετικ/.test(full)) {
+    tips.push('Στη σύνταξη βρες πρώτα το ρήμα. Μετά ρώτησε “ποιος;” για υποκείμενο και “τι;” για αντικείμενο.');
+  }
+  if (tags.includes('Κατανόηση κειμένου')) {
+    tips.push('Για κατανόηση κειμένου ψάξε ποιος ενεργεί, τι συμβαίνει και ποια φράση το αποδεικνύει.');
+  }
+
+  if (ex.hint) tips.unshift(ex.hint);
+  return uniqueText(tips).slice(0, 4);
+}
+
+function uniqueText(items) {
+  const seen = new Set();
+  return items.filter(x => {
+    const key = normalize(x);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function showExerciseMentor(card, ex, u, id) {
+  const old = card.querySelector('.mentor-tip-box');
+  if (old) {
+    old.remove();
+    return;
+  }
+  state.hintsUsed[id] = (state.hintsUsed[id] || 0) + 1;
+  save();
+  const box = document.createElement('div');
+  box.className = 'mentor-tip-box';
+  const tips = mentorHintText(ex, u);
+  box.innerHTML = `
+    <strong>🧭 Μέντορας Ακαδημίας</strong>
+    <p>Δεν σου δίνω αμέσως την απάντηση. Σου δείχνω πώς να τη βρεις.</p>
+    <ul>${tips.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ul>
+  `;
+  const feedback = card.querySelector('.feedback');
+  if (feedback) feedback.before(box);
+  else card.appendChild(box);
+}
+
+function renderAcademyMentor() {
+  featureStart();
+  const refs = mentorFocusRefs(8);
+  const weak = profileTagStats().filter(t => t.mistakes > 0 || t.percent < 55).sort((a, b) => b.mistakes - a.mistakes || a.percent - b.percent).slice(0, 5);
+  const hints = Object.values(state.hintsUsed || {}).reduce((sum, v) => sum + Number(v || 0), 0);
+  const sessionRefs = refs.slice(0, 6);
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel mentor-panel">
+      <p class="eyebrow">Build 2.5 • Έξυπνη καθοδήγηση</p>
+      <h2>🧭 Μέντορας Ακαδημίας</h2>
+      <p>${escapeHTML(mentorHeadline())}</p>
+
+      <div class="mentor-summary-grid">
+        <div><strong>${coursePercent()}%</strong><span>πορεία</span></div>
+        <div><strong>${mistakeTotal()}</strong><span>λάθη για επανάληψη</span></div>
+        <div><strong>${hints}</strong><span>υποδείξεις που ζητήθηκαν</span></div>
+        <div><strong>${refs.length}</strong><span>προτάσεις τώρα</span></div>
+      </div>
+
+      <section class="mentor-card main-advice">
+        <h3>Τι να κάνεις τώρα</h3>
+        <p>${escapeHTML(mentorHeadline())}</p>
+        <div class="feature-actions-row">
+          <button id="startMentorSession">Ξεκίνα διαδρομή 15 λεπτών</button>
+          <button id="mentorReviewBtn" class="ghost-tool">Άνοιγμα Κέντρου Επανάληψης</button>
+          <button id="mentorDiagnosticBtn" class="ghost-tool">Νέο διαγνωστικό</button>
+        </div>
+      </section>
+
+      <section class="mentor-card">
+        <h3>🎯 Προτεινόμενες κινήσεις</h3>
+        <div class="mentor-task-list">
+          ${refs.length ? refs.map((ref, i) => `
+            <button class="mentor-task review-item" data-unit="${ref.unitIndex}" data-idx="${ref.idx}">
+              <strong>${i + 1}. ${escapeHTML(ref.ex.title)}</strong>
+              <span>${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</span>
+              <small>${escapeHTML(mentorHintText(ref.ex, ref.u)[0] || 'Δούλεψε με προσοχή και μετά έλεγξε την απάντηση.')}</small>
+            </button>
+          `).join('') : '<div class="empty-state">Δεν υπάρχουν ανοιχτές άλυτες δοκιμασίες. Πήγαινε στην τελική επανάληψη ή άνοιξε προεπισκόπηση καθηγητή για έλεγχο.</div>'}
+        </div>
+      </section>
+
+      <section class="mentor-card">
+        <h3>🔍 Τι δείχνει η πορεία σου</h3>
+        ${weak.length ? `<div class="mentor-weak-grid">${weak.map(t => `
+          <div>
+            <strong>${escapeHTML(t.tag)}</strong>
+            <span>${t.mistakes} λάθη • ${t.percent}% λυμένα</span>
+            <div class="mini-meter warning"><i style="width:${Math.min(100, Math.max(8, t.percent))}%"></i></div>
+          </div>
+        `).join('')}</div>` : '<p class="source">Δεν φαίνεται ακόμα συγκεκριμένη αδυναμία. Συνέχισε με άλυτες δοκιμασίες για να γίνει πιο έξυπνη η καθοδήγηση.</p>'}
+      </section>
+    </article>
+  `;
+
+  $('#startMentorSession').addEventListener('click', () => renderMentorSession(sessionRefs));
+  $('#mentorReviewBtn').addEventListener('click', renderReviewCenter);
+  $('#mentorDiagnosticBtn').addEventListener('click', renderDiagnosticCenter);
+  bindReviewOpenButtons();
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderMentorSession(refs) {
+  const session = uniqueRefs(refs && refs.length ? refs : mentorFocusRefs(6)).slice(0, 6);
+  state.mentorSessions.unshift({ date: new Date().toISOString(), refs: session.map(ref => ref.id) });
+  state.mentorSessions = state.mentorSessions.slice(0, 10);
+  save();
+
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel mentor-panel">
+      <p class="eyebrow">Διαδρομή 15 λεπτών</p>
+      <h2>🕯️ Μικρή διαδρομή μελέτης</h2>
+      <p>Δούλεψε με σειρά. Μην προσπαθήσεις να τα κάνεις όλα τέλεια· στόχος είναι καθαρή σκέψη και σταθερή πρόοδος.</p>
+      <div class="mentor-route">
+        ${session.map((ref, i) => `
+          <button class="route-step review-item" data-unit="${ref.unitIndex}" data-idx="${ref.idx}">
+            <span>Βήμα ${i + 1}</span>
+            <strong>${escapeHTML(ref.ex.title)}</strong>
+            <small>${escapeHTML(ref.u.place)} • ${exerciseTypeLabel(ref.ex.type)}</small>
+          </button>
+        `).join('') || '<div class="empty-state">Δεν βρέθηκαν προτεινόμενες δοκιμασίες.</div>'}
+      </div>
+      <section class="mentor-card">
+        <h3>Κανόνας διαδρομής</h3>
+        <ul>
+          <li>Πρώτα σκέφτομαι τον κανόνα.</li>
+          <li>Μετά απαντώ.</li>
+          <li>Αν κάνω λάθος, ζητώ βοήθεια μέντορα και ξαναδοκιμάζω.</li>
+          <li>Στο τέλος γράφω μία σημείωση στην ενότητα που με δυσκόλεψε.</li>
+        </ul>
+      </section>
+      <div class="feature-actions-row">
+        <button id="backMentorBtn" class="ghost-tool">Επιστροφή στον Μέντορα</button>
+        <button id="printMentorRoute" class="ghost-tool">Εκτύπωση διαδρομής</button>
+      </div>
+    </article>
+  `;
+  bindReviewOpenButtons();
+  $('#backMentorBtn').addEventListener('click', renderAcademyMentor);
+  $('#printMentorRoute').addEventListener('click', () => window.print());
+}
+
 function renderStudentProfile() {
   featureStart();
   const solved = solvedExercises();
@@ -1425,7 +1664,7 @@ function renderStudentProfile() {
 
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel student-profile">
-      <p class="eyebrow">Build 2.4 • Μαθητικό προφίλ</p>
+      <p class="eyebrow">Build 2.5 • Μαθητικό προφίλ</p>
       <div class="profile-hero">
         <div>
           <h2>🧑‍🎓 Καρτέλα μαθητή</h2>
@@ -1781,6 +2020,8 @@ function importProgressFromFile(file) {
       if (Array.isArray(payload.diagnostics)) next.diagnosticHistory = payload.diagnostics;
       if (payload.notes && typeof payload.notes === 'object') next.unitNotes = payload.notes;
       if (payload.bookmarks && typeof payload.bookmarks === 'object') next.bookmarks = payload.bookmarks;
+      if (payload.hintsUsed && typeof payload.hintsUsed === 'object') next.hintsUsed = payload.hintsUsed;
+      if (Array.isArray(payload.mentorSessions)) next.mentorSessions = payload.mentorSessions;
       state = next;
       save();
       toast('Η πρόοδος εισήχθη.');
@@ -1861,6 +2102,7 @@ $('#diagnosticBtn').addEventListener('click', renderDiagnosticCenter);
 $('#reviewCenterBtn').addEventListener('click', renderReviewCenter);
 $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
 $('#studentProfileBtn').addEventListener('click', renderStudentProfile);
+$('#academyMentorBtn').addEventListener('click', renderAcademyMentor);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
