@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_6';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_6';
+const stateKey = 'akadimiaArxaionProgressV2_7';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_7';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -27,6 +27,8 @@ const defaultState = {
   dailyStreak: 0,
   lastDailyClaim: '',
   challengeHistory: [],
+  masteredTheory: {},
+  favoriteTheory: {},
   teacherPrefs: {}
 };
 
@@ -53,6 +55,8 @@ state.dailyClaims = state.dailyClaims || {};
 state.dailyStreak = state.dailyStreak || 0;
 state.lastDailyClaim = state.lastDailyClaim || '';
 state.challengeHistory = state.challengeHistory || [];
+state.masteredTheory = state.masteredTheory || {};
+state.favoriteTheory = state.favoriteTheory || {};
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
@@ -1519,7 +1523,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.6',
+    build: '2.7',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1538,7 +1542,9 @@ function exportProgress() {
     dailyClaims: state.dailyClaims,
     dailyStreak: state.dailyStreak,
     lastDailyClaim: state.lastDailyClaim,
-    challengeHistory: state.challengeHistory
+    challengeHistory: state.challengeHistory,
+    masteredTheory: state.masteredTheory,
+    favoriteTheory: state.favoriteTheory
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2328,6 +2334,307 @@ function openRandomUnsolved() {
   }, 150);
 }
 
+
+function theoryCardId(unitId, idx) {
+  return unitId + ':theory:' + idx;
+}
+
+function allTheoryCards() {
+  const cards = [];
+  ACADEMY_UNITS.forEach((u, unitIndex) => {
+    (u.microLessons || []).forEach((m, idx) => {
+      const tags = learningTags(u);
+      cards.push({
+        id: theoryCardId(u.id, idx),
+        u,
+        unitIndex,
+        idx,
+        title: m.title,
+        body: m.body,
+        tags,
+        source: u.title,
+        place: u.place
+      });
+    });
+  });
+  return cards;
+}
+
+function theoryStats() {
+  const cards = allTheoryCards();
+  const mastered = cards.filter(c => state.masteredTheory[c.id]).length;
+  const favorite = cards.filter(c => state.favoriteTheory[c.id]).length;
+  return { cards, mastered, favorite, total: cards.length };
+}
+
+function theoryPercent() {
+  const stats = theoryStats();
+  return stats.total ? Math.round(stats.mastered / stats.total * 100) : 0;
+}
+
+function toggleTheoryMastered(cardId) {
+  if (state.masteredTheory[cardId]) {
+    delete state.masteredTheory[cardId];
+    toast('Η κάρτα αφαιρέθηκε από τις κατακτημένες.');
+  } else {
+    state.masteredTheory[cardId] = new Date().toISOString();
+    state.xp += 5;
+    if (theoryPercent() >= 25) addBadge('Μελετητής θεωρίας');
+    if (theoryPercent() >= 60) addBadge('Φύλακας γνώσης');
+    toast('Κατακτήθηκε κάρτα θεωρίας +5 XP');
+  }
+  save();
+  renderStats();
+}
+
+function toggleTheoryFavorite(cardId) {
+  if (state.favoriteTheory[cardId]) {
+    delete state.favoriteTheory[cardId];
+    toast('Αφαιρέθηκε από τις αγαπημένες κάρτες.');
+  } else {
+    state.favoriteTheory[cardId] = new Date().toISOString();
+    toast('Προστέθηκε στις αγαπημένες κάρτες.');
+  }
+  save();
+}
+
+function libraryTagList(cards) {
+  const counts = {};
+  cards.forEach(c => c.tags.forEach(t => counts[t] = (counts[t] || 0) + 1));
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'el'));
+}
+
+function renderKnowledgeLibrary() {
+  featureStart();
+  const { cards, mastered, favorite, total } = theoryStats();
+  const tags = libraryTagList(cards);
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel library-panel">
+      <p class="eyebrow">Build 2.7 • Βιβλιοθήκη γνώσης</p>
+      <h2>📚 Βιβλιοθήκη Γνώσης</h2>
+      <p>Όλες οι κάρτες μικρομαθήματος συγκεντρωμένες σε ένα σημείο. Ο μαθητής μπορεί να ψάξει κανόνες, λεξιλόγιο, κλίσεις, ρήματα και σύνταξη χωρίς να χαθεί μέσα στον χάρτη.</p>
+
+      <div class="library-stats-grid">
+        <div><strong>${total}</strong><span>κάρτες γνώσης</span></div>
+        <div><strong>${mastered}</strong><span>κατακτημένες</span></div>
+        <div><strong>${favorite}</strong><span>αγαπημένες</span></div>
+        <div><strong>${theoryPercent()}%</strong><span>πορεία θεωρίας</span></div>
+      </div>
+
+      <div class="library-controls">
+        <input id="librarySearch" class="search-input" placeholder="Αναζήτηση: εἰμί, αύξηση, φωνή, Α΄ κλίση..." />
+        <select id="libraryTagFilter">
+          <option value="all">Όλοι οι άξονες</option>
+          ${tags.map(([tag, count]) => `<option value="${escapeHTML(tag)}">${escapeHTML(tag)} (${count})</option>`).join('')}
+        </select>
+        <select id="libraryStatusFilter">
+          <option value="all">Όλες οι κάρτες</option>
+          <option value="mastered">Κατακτημένες</option>
+          <option value="favorites">Αγαπημένες</option>
+          <option value="open">Δεν κατακτήθηκαν ακόμη</option>
+        </select>
+      </div>
+
+      <div id="libraryCards" class="library-grid"></div>
+    </article>
+  `;
+  const renderList = () => renderLibraryCards(cards);
+  $('#librarySearch').addEventListener('input', renderList);
+  $('#libraryTagFilter').addEventListener('change', renderList);
+  $('#libraryStatusFilter').addEventListener('change', renderList);
+  renderList();
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderLibraryCards(cards) {
+  const q = normalize($('#librarySearch')?.value || '');
+  const tag = $('#libraryTagFilter')?.value || 'all';
+  const status = $('#libraryStatusFilter')?.value || 'all';
+  let filtered = cards.filter(card => {
+    const hay = normalize([card.title, card.body, card.place, card.source, ...card.tags].join(' '));
+    if (q && !hay.includes(q)) return false;
+    if (tag !== 'all' && !card.tags.includes(tag)) return false;
+    if (status === 'mastered' && !state.masteredTheory[card.id]) return false;
+    if (status === 'favorites' && !state.favoriteTheory[card.id]) return false;
+    if (status === 'open' && state.masteredTheory[card.id]) return false;
+    return true;
+  });
+
+  $('#libraryCards').innerHTML = filtered.length ? filtered.map(card => `
+    <section class="knowledge-card ${state.masteredTheory[card.id] ? 'mastered' : ''} ${state.favoriteTheory[card.id] ? 'favorite' : ''}">
+      <div class="knowledge-head">
+        <span>${escapeHTML(card.place)}</span>
+        <em>${state.masteredTheory[card.id] ? 'Κατακτημένη' : 'Για μελέτη'}</em>
+      </div>
+      <h3>${escapeHTML(card.title)}</h3>
+      <p>${escapeHTML(card.body)}</p>
+      <div class="unit-tags small-tags">${card.tags.map(t => `<span>${escapeHTML(t)}</span>`).join('')}</div>
+      <div class="feature-actions-row compact-actions">
+        <button class="markTheory" data-card="${escapeHTML(card.id)}">${state.masteredTheory[card.id] ? 'Αφαίρεση κατάκτησης' : 'Το κατάλαβα'}</button>
+        <button class="favoriteTheory ghost-tool" data-card="${escapeHTML(card.id)}">${state.favoriteTheory[card.id] ? '★ Αγαπημένη' : '☆ Αγαπημένη'}</button>
+        <button class="openTheoryUnit ghost-tool" data-unit="${card.unitIndex}">Άνοιγμα ενότητας</button>
+      </div>
+    </section>
+  `).join('') : '<div class="empty-state">Δεν βρέθηκαν κάρτες με αυτά τα κριτήρια.</div>';
+
+  $$('.markTheory').forEach(btn => btn.addEventListener('click', () => { toggleTheoryMastered(btn.dataset.card); renderLibraryCards(cards); }));
+  $$('.favoriteTheory').forEach(btn => btn.addEventListener('click', () => { toggleTheoryFavorite(btn.dataset.card); renderLibraryCards(cards); }));
+  $$('.openTheoryUnit').forEach(btn => btn.addEventListener('click', () => openUnit(Number(btn.dataset.unit))));
+}
+
+function chooseTheoryDeck(mode = 'smart', count = 12) {
+  const cards = allTheoryCards();
+  const favorites = cards.filter(c => state.favoriteTheory[c.id]);
+  const open = cards.filter(c => !state.masteredTheory[c.id]);
+  const weakTags = profileTagStats().filter(t => t.mistakes > 0 || t.percent < 60).map(t => t.tag);
+  const weak = cards.filter(c => c.tags.some(t => weakTags.includes(t)) && !state.masteredTheory[c.id]);
+  let deck = [];
+  if (mode === 'favorites') deck = favorites;
+  else if (mode === 'open') deck = open;
+  else if (mode === 'weak') deck = weak;
+  else deck = uniqueTheoryCards([...weak, ...open, ...favorites, ...cards]);
+  return seededShuffle(deck.length ? deck : cards, `${state.name || 'student'}:${mode}:theory`).slice(0, count);
+}
+
+function uniqueTheoryCards(cards) {
+  const seen = new Set();
+  return cards.filter(c => {
+    if (!c || !c.id || seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+}
+
+function renderTheoryCards() {
+  featureStart();
+  const stats = theoryStats();
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel flash-panel">
+      <p class="eyebrow">Build 2.7 • Κάρτες θεωρίας</p>
+      <h2>🧠 Κάρτες Θεωρίας</h2>
+      <p>Γρήγορη επανάληψη θεωρίας με κάρτες. Πρώτα βλέπεις τον τίτλο, σκέφτεσαι τι θυμάσαι και μετά ανοίγεις τον κανόνα.</p>
+
+      <div class="library-stats-grid">
+        <div><strong>${stats.mastered}/${stats.total}</strong><span>κατακτημένες</span></div>
+        <div><strong>${stats.favorite}</strong><span>αγαπημένες</span></div>
+        <div><strong>${theoryPercent()}%</strong><span>πορεία θεωρίας</span></div>
+        <div><strong>${mistakeTotal()}</strong><span>λάθη για στόχευση</span></div>
+      </div>
+
+      <div class="flash-setup">
+        <label>Τράπουλα
+          <select id="theoryDeckMode">
+            <option value="smart">Έξυπνη επιλογή</option>
+            <option value="weak">Αδύναμα σημεία</option>
+            <option value="open">Μη κατακτημένες</option>
+            <option value="favorites">Αγαπημένες</option>
+          </select>
+        </label>
+        <label>Πλήθος
+          <select id="theoryDeckCount">
+            <option value="8">8 κάρτες</option>
+            <option value="12" selected>12 κάρτες</option>
+            <option value="20">20 κάρτες</option>
+          </select>
+        </label>
+        <button id="startTheoryDeck">Έναρξη καρτών</button>
+      </div>
+      <div id="theoryDeckStage"></div>
+    </article>
+  `;
+  $('#startTheoryDeck').addEventListener('click', () => {
+    const mode = $('#theoryDeckMode').value;
+    const count = Number($('#theoryDeckCount').value || 12);
+    renderTheoryDeck(chooseTheoryDeck(mode, count), 0, false);
+  });
+  renderTheoryDeck(chooseTheoryDeck('smart', 12), 0, false);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTheoryDeck(deck, index = 0, revealed = false) {
+  const stage = $('#theoryDeckStage');
+  if (!stage) return;
+  if (!deck.length) {
+    stage.innerHTML = '<div class="empty-state">Δεν βρέθηκαν κάρτες για αυτή την επιλογή.</div>';
+    return;
+  }
+  const card = deck[Math.max(0, Math.min(index, deck.length - 1))];
+  const pct = Math.round(((index + 1) / deck.length) * 100);
+  stage.innerHTML = `
+    <section class="flash-card ${revealed ? 'revealed' : ''}">
+      <div class="flash-topline"><span>Κάρτα ${index + 1}/${deck.length}</span><span>${escapeHTML(card.place)}</span></div>
+      <div class="course-meter"><span style="width:${pct}%"></span></div>
+      <h3>${escapeHTML(card.title)}</h3>
+      <div class="flash-body">
+        ${revealed ? `<p>${escapeHTML(card.body)}</p>` : '<p class="flash-question">Προσπάθησε πρώτα να θυμηθείς τον κανόνα. Μετά πάτα «Άνοιγμα κάρτας».</p>'}
+      </div>
+      <div class="unit-tags small-tags">${card.tags.map(t => `<span>${escapeHTML(t)}</span>`).join('')}</div>
+      <div class="feature-actions-row compact-actions">
+        <button id="flipTheoryCard">${revealed ? 'Κλείσιμο κάρτας' : 'Άνοιγμα κάρτας'}</button>
+        <button id="masterTheoryCard" class="ghost-tool">${state.masteredTheory[card.id] ? 'Κατακτημένη ✓' : 'Το κατάλαβα'}</button>
+        <button id="favTheoryCard" class="ghost-tool">${state.favoriteTheory[card.id] ? '★ Αγαπημένη' : '☆ Αγαπημένη'}</button>
+        <button id="prevTheoryCard" class="ghost-tool" ${index === 0 ? 'disabled' : ''}>Προηγούμενη</button>
+        <button id="nextTheoryCard" class="ghost-tool" ${index >= deck.length - 1 ? 'disabled' : ''}>Επόμενη</button>
+      </div>
+    </section>
+  `;
+  $('#flipTheoryCard').addEventListener('click', () => renderTheoryDeck(deck, index, !revealed));
+  $('#masterTheoryCard').addEventListener('click', () => { toggleTheoryMastered(card.id); renderTheoryDeck(deck, index, true); });
+  $('#favTheoryCard').addEventListener('click', () => { toggleTheoryFavorite(card.id); renderTheoryDeck(deck, index, revealed); });
+  $('#prevTheoryCard').addEventListener('click', () => renderTheoryDeck(deck, index - 1, false));
+  $('#nextTheoryCard').addEventListener('click', () => renderTheoryDeck(deck, index + 1, false));
+}
+
+function renderCertificate() {
+  featureStart();
+  const percent = coursePercent();
+  const solved = solvedExercises();
+  const total = totalExercises();
+  const completed = Object.keys(state.completed).length;
+  const theory = theoryStats();
+  const date = new Date().toLocaleDateString('el-GR');
+  const title = percent >= 85 ? 'Πιστοποιητικό Ολοκλήρωσης Ακαδημίας' : percent >= 50 ? 'Βεβαίωση Προόδου Ακαδημίας' : 'Βεβαίωση Συμμετοχής στην Ακαδημία';
+  const seal = percent >= 85 ? 'Χρυσή Σφραγίδα' : percent >= 50 ? 'Αργυρή Σφραγίδα' : 'Χάλκινη Σφραγίδα';
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel certificate-panel">
+      <p class="eyebrow">Build 2.7 • Πιστοποιητικό πορείας</p>
+      <h2>🎓 Πιστοποιητικό Πορείας</h2>
+      <p>Εκτυπώσιμη καρτέλα για τον μαθητή. Μπορεί να χρησιμοποιηθεί ως μικρή επιβράβευση ή ως ανακεφαλαίωση προόδου.</p>
+
+      <section class="certificate-sheet" id="certificateSheet">
+        <div class="certificate-border">
+          <p class="certificate-small">Η Ακαδημία των Αρχαίων</p>
+          <h3>${escapeHTML(title)}</h3>
+          <p>Απονέμεται στον/στην</p>
+          <strong class="certificate-name">${escapeHTML(state.name || 'Μαθητή/Μαθήτρια')}</strong>
+          <p>για την πορεία του/της στην Αρχαία Ελληνική Γλώσσα Α΄ Γυμνασίου.</p>
+          <div class="certificate-grid">
+            <div><strong>${percent}%</strong><span>συνολική πρόοδος</span></div>
+            <div><strong>${solved}/${total}</strong><span>δοκιμασίες</span></div>
+            <div><strong>${completed}/${ACADEMY_UNITS.length}</strong><span>κειμήλια</span></div>
+            <div><strong>${theory.mastered}/${theory.total}</strong><span>κάρτες θεωρίας</span></div>
+          </div>
+          <div class="certificate-footer">
+            <span>${escapeHTML(rank())}</span>
+            <span>${escapeHTML(seal)}</span>
+            <span>${date}</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="certificate-actions feature-actions-row">
+        <button id="printCertificateBtn">Εκτύπωση πιστοποιητικού</button>
+        <button id="openLibraryFromCert" class="ghost-tool">Άνοιγμα Βιβλιοθήκης</button>
+        <button id="openTheoryFromCert" class="ghost-tool">Κάρτες θεωρίας</button>
+      </div>
+    </article>
+  `;
+  $('#printCertificateBtn').addEventListener('click', () => window.print());
+  $('#openLibraryFromCert').addEventListener('click', renderKnowledgeLibrary);
+  $('#openTheoryFromCert').addEventListener('click', renderTheoryCards);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function normalize(s) {
   return (s || '')
     .toLowerCase()
@@ -2381,6 +2688,9 @@ $('#studentProfileBtn').addEventListener('click', renderStudentProfile);
 $('#academyMentorBtn').addEventListener('click', renderAcademyMentor);
 $('#dailyMissionsBtn').addEventListener('click', renderDailyMissions);
 $('#challengeArenaBtn').addEventListener('click', renderChallengeArena);
+$('#knowledgeLibraryBtn').addEventListener('click', renderKnowledgeLibrary);
+$('#theoryCardsBtn').addEventListener('click', renderTheoryCards);
+$('#certificateBtn').addEventListener('click', renderCertificate);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
