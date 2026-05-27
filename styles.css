@@ -1197,3 +1197,144 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   .assignment-score { width: auto; }
   .assignment-actions.vertical { flex-direction: row; min-width: 0; }
 }
+
+/* Build 2.10 - Αποστολή τάξης σε ενιαία ροή quiz */
+.assignment-player-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+.assignment-player .assignment-progress-hero {
+  margin-top: 16px;
+}
+.assignment-question-nav {
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 252, 241, .78);
+  border: 1px solid rgba(166, 126, 62, .28);
+}
+.assignment-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.assignment-dot {
+  width: 52px;
+  min-height: 46px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(166, 126, 62, .35);
+  background: #fffaf0;
+  color: #1d2a3a;
+  display: grid;
+  place-items: center;
+  gap: 0;
+  box-shadow: none;
+}
+.assignment-dot strong { font-size: .95rem; }
+.assignment-dot span { font-size: .82rem; color: #8b6a30; }
+.assignment-dot.done {
+  background: rgba(117, 153, 96, .18);
+  border-color: rgba(117, 153, 96, .48);
+}
+.assignment-dot.current {
+  outline: 3px solid rgba(199, 163, 90, .42);
+  background: #172033;
+  color: #fff8df;
+}
+.assignment-dot.current span { color: #f0d487; }
+.assignment-nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.assignment-current-question {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(29, 42, 58, .10);
+  background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(248,239,214,.58));
+}
+.assignment-current-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.assignment-current-meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(166,126,62,.25);
+  font-size: .84rem;
+  font-weight: 900;
+  color: #4d371c;
+}
+.assignment-current-question .exercise {
+  margin: 0;
+}
+.assignment-overview {
+  margin-top: 18px;
+  border: 1px solid rgba(166,126,62,.28);
+  border-radius: 20px;
+  background: rgba(255, 252, 241, .62);
+  overflow: hidden;
+}
+.assignment-overview summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 900;
+  color: #4d371c;
+}
+.assignment-compact-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+.assignment-compact-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  color: #1d2a3a;
+  border: 1px solid rgba(29,42,58,.08);
+  box-shadow: none;
+}
+.assignment-compact-row span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(199,163,90,.22);
+  font-weight: 900;
+}
+.assignment-compact-row strong { overflow-wrap: anywhere; }
+.assignment-compact-row em {
+  font-style: normal;
+  color: #5c6572;
+  font-size: .82rem;
+  text-align: right;
+}
+.assignment-compact-row.done {
+  background: rgba(117,153,96,.14);
+  border-color: rgba(117,153,96,.34);
+}
+.assignment-compact-row.current {
+  border-color: rgba(23,32,51,.55);
+  box-shadow: 0 0 0 3px rgba(199,163,90,.18);
+}
+@media (max-width: 760px) {
+  .assignment-player-head,
+  .assignment-compact-row { grid-template-columns: 1fr; }
+  .assignment-compact-row em { text-align: left; }
+  .assignment-dot { width: 44px; }
+}

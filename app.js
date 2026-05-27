@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_9';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_9';
+const stateKey = 'akadimiaArxaionProgressV2_10';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_10';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -33,6 +33,7 @@ const defaultState = {
   activeLearningPath: 'first_steps',
   classAssignments: {},
   assignmentClaims: {},
+  assignmentCursors: {},
   teacherPrefs: {}
 };
 
@@ -65,6 +66,7 @@ state.learningPathClaims = state.learningPathClaims || {};
 state.activeLearningPath = state.activeLearningPath || 'first_steps';
 state.classAssignments = state.classAssignments || {};
 state.assignmentClaims = state.assignmentClaims || {};
+state.assignmentCursors = state.assignmentCursors || {};
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
@@ -1600,7 +1602,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.9',
+    build: '2.10',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1623,7 +1625,8 @@ function exportProgress() {
     masteredTheory: state.masteredTheory,
     favoriteTheory: state.favoriteTheory,
     classAssignments: state.classAssignments,
-    assignmentClaims: state.assignmentClaims
+    assignmentClaims: state.assignmentClaims,
+    assignmentCursors: state.assignmentCursors
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2389,6 +2392,7 @@ function importProgressFromFile(file) {
       if (payload.favoriteTheory && typeof payload.favoriteTheory === 'object') next.favoriteTheory = payload.favoriteTheory;
       if (payload.classAssignments && typeof payload.classAssignments === 'object') next.classAssignments = payload.classAssignments;
       if (payload.assignmentClaims && typeof payload.assignmentClaims === 'object') next.assignmentClaims = payload.assignmentClaims;
+      if (payload.assignmentCursors && typeof payload.assignmentCursors === 'object') next.assignmentCursors = payload.assignmentCursors;
       state = next;
       save();
       toast('Η πρόοδος εισήχθη.');
@@ -2932,9 +2936,9 @@ function renderAssignmentBuilder() {
   featureStart();
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel assignment-builder">
-      <p class="eyebrow">Build 2.9 • Εργαλεία καθηγητή</p>
+      <p class="eyebrow">Build 2.10 • Εργαλεία καθηγητή</p>
       <h2>📦 Δημιουργός αποστολών</h2>
-      <p>Φτιάξε μια μικρή εργασία από τις υπάρχουσες δοκιμασίες της Ακαδημίας. Η εφαρμογή παράγει έναν κωδικό αποστολής που μπορούν να επικολλήσουν οι μαθητές στο κουμπί <strong>Αποστολή τάξης</strong>.</p>
+      <p>Φτιάξε μια μικρή εργασία από τις υπάρχουσες δοκιμασίες της Ακαδημίας. Η εφαρμογή παράγει έναν κωδικό αποστολής που οι μαθητές φορτώνουν στο <strong>Αποστολή τάξης</strong> και λύνουν πλέον μέσα σε ενιαία ροή ερωτήσεων.</p>
 
       <div class="assignment-layout">
         <section class="generator-box">
@@ -3084,9 +3088,9 @@ function renderClassMissionCenter() {
   const assignments = Object.values(state.classAssignments || {}).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel class-mission-center">
-      <p class="eyebrow">Build 2.9 • Μαθητική αποστολή</p>
+      <p class="eyebrow">Build 2.10 • Μαθητική αποστολή</p>
       <h2>🎒 Αποστολή τάξης</h2>
-      <p>Επικόλλησε τον κωδικό που θα σου δώσει ο καθηγητής. Η αποστολή θα εμφανιστεί εδώ και θα μετράει την πρόοδό σου με βάση τις δοκιμασίες που λύνεις.</p>
+      <p>Επικόλλησε τον κωδικό που θα σου δώσει ο καθηγητής. Η αποστολή ανοίγει πλέον σαν κανονικό quiz μέσα στην ίδια οθόνη, με επόμενη ερώτηση, πρόοδο και τελικό σφράγισμα.</p>
       <div class="mission-import-box">
         <textarea id="classMissionCode" rows="4" placeholder="Επικόλλησε εδώ τον κωδικό αποστολής..."></textarea>
         <button id="importClassMissionBtn">Φόρτωση αποστολής</button>
@@ -3126,9 +3130,10 @@ function importClassMissionCode() {
   try {
     const payload = validateAssignmentPayload(decodeAssignmentPayload($('#classMissionCode').value));
     state.classAssignments[payload.id] = payload;
+    state.assignmentCursors[payload.id] = 0;
     save();
     toast('Η αποστολή τάξης φορτώθηκε.');
-    renderClassMissionCenter();
+    renderClassMissionDetail(payload.id);
   } catch (err) {
     toast('Ο κωδικός αποστολής δεν είναι έγκυρος.');
   }
@@ -3141,47 +3146,141 @@ function removeClassAssignment(id) {
   renderClassMissionCenter();
 }
 
+function getAssignmentCursor(id, total) {
+  const raw = Number(state.assignmentCursors[id] || 0);
+  if (!total) return 0;
+  return Math.max(0, Math.min(total - 1, Number.isFinite(raw) ? raw : 0));
+}
+
+function setAssignmentCursor(id, index, total) {
+  state.assignmentCursors[id] = Math.max(0, Math.min(Math.max(0, total - 1), index));
+  save();
+}
+
+function firstUnsolvedAssignmentIndex(refs) {
+  return refs.findIndex(ref => !state.answers[ref.id]);
+}
+
+function nextUnsolvedAssignmentIndex(refs, currentIndex = 0) {
+  if (!refs.length) return -1;
+  for (let i = currentIndex + 1; i < refs.length; i++) {
+    if (!state.answers[refs[i].id]) return i;
+  }
+  for (let i = 0; i <= currentIndex; i++) {
+    if (!state.answers[refs[i].id]) return i;
+  }
+  return -1;
+}
+
+function assignmentQuestionButtonsHTML(refs, currentIndex) {
+  return refs.map((ref, i) => {
+    const solved = !!state.answers[ref.id];
+    const current = i === currentIndex;
+    return `<button class="assignment-dot ${solved ? 'done' : ''} ${current ? 'current' : ''}" data-jump="${i}" title="${escapeHTML(ref.ex.title)}">
+      <strong>${i + 1}</strong><span>${solved ? '✓' : '•'}</span>
+    </button>`;
+  }).join('');
+}
+
+function assignmentCompactListHTML(refs, currentIndex) {
+  return refs.map((ref, i) => `
+    <button class="assignment-compact-row ${state.answers[ref.id] ? 'done' : ''} ${i === currentIndex ? 'current' : ''}" data-jump="${i}">
+      <span>${i + 1}</span>
+      <strong>${escapeHTML(ref.ex.title)}</strong>
+      <em>${escapeHTML(ref.u.place)} • ${exerciseTypeLabel(ref.ex.type)}</em>
+    </button>
+  `).join('');
+}
+
 function renderClassMissionDetail(id) {
   const assignment = state.classAssignments[id];
   if (!assignment) return renderClassMissionCenter();
   const stats = assignmentStats(assignment);
-  const next = stats.refs.find(ref => !state.answers[ref.id]);
+  const refs = stats.refs;
+  if (!refs.length) return renderClassMissionCenter();
+  const currentIndex = getAssignmentCursor(id, refs.length);
+  const current = refs[currentIndex];
+  const nextIndex = Math.min(currentIndex + 1, refs.length - 1);
+  const prevIndex = Math.max(currentIndex - 1, 0);
+  const nextUnsolvedIndex = nextUnsolvedAssignmentIndex(refs, currentIndex);
+  const firstUnsolvedIndex = firstUnsolvedAssignmentIndex(refs);
   const claimed = !!state.assignmentClaims[id];
+  const currentSolved = !!state.answers[current.id];
+  const remaining = stats.total - stats.solved;
+
   $('#lessonView').innerHTML = `
-    <article class="lesson-card feature-panel assignment-detail">
-      <p class="eyebrow">Αποστολή τάξης</p>
-      <h2>📦 ${escapeHTML(assignment.title)}</h2>
-      <p>${escapeHTML(assignment.instructions)}</p>
-      ${assignment.due ? `<p><strong>Προθεσμία:</strong> ${escapeHTML(assignment.due)}</p>` : ''}
+    <article class="lesson-card feature-panel assignment-detail assignment-player">
+      <p class="eyebrow">Build 2.10 • Αποστολή τάξης σε ροή quiz</p>
+      <div class="assignment-player-head">
+        <div>
+          <h2>📦 ${escapeHTML(assignment.title)}</h2>
+          <p>${escapeHTML(assignment.instructions)}</p>
+          ${assignment.due ? `<p><strong>Προθεσμία:</strong> ${escapeHTML(assignment.due)}</p>` : ''}
+        </div>
+        <div class="assignment-score"><strong>${stats.percent}%</strong><span>πορεία</span></div>
+      </div>
+
       <div class="assignment-progress-hero">
-        <div class="path-score"><strong>${stats.percent}%</strong><span>πορεία</span></div>
         <div>
           <div class="mini-progress"><span style="width:${stats.percent}%"></span></div>
-          <p><strong>${stats.solved}/${stats.total}</strong> δοκιμασίες λυμένες.</p>
-          <p>${claimed ? 'Η ανταμοιβή έχει δοθεί.' : 'Όταν λυθούν όλες, μπορείς να πάρεις την ανταμοιβή της αποστολής.'}</p>
+          <p><strong>${stats.solved}/${stats.total}</strong> δοκιμασίες λυμένες • ${remaining} απομένουν.</p>
+          <p>${claimed ? 'Η ανταμοιβή έχει δοθεί.' : 'Λύσε όλες τις ερωτήσεις μέσα από αυτή τη ροή και μετά σφράγισε την αποστολή.'}</p>
+        </div>
+        <div class="assignment-actions vertical">
+          <button id="backAssignmentsBtn" class="ghost-tool">Πίσω στις αποστολές</button>
+          <button id="claimAssignmentReward" ${stats.percent >= 100 && !claimed ? '' : 'disabled'}>Σφράγισε αποστολή +${assignment.reward} XP</button>
+          <button id="printAssignmentBtn" class="ghost-tool">Εκτύπωση</button>
         </div>
       </div>
-      <div class="assignment-actions">
-        <button id="backAssignmentsBtn" class="ghost-tool">Πίσω στις αποστολές</button>
-        <button id="nextAssignmentTask" ${next ? '' : 'disabled'}>Επόμενη άλυτη</button>
-        <button id="claimAssignmentReward" ${stats.percent >= 100 && !claimed ? '' : 'disabled'}>Σφράγισε αποστολή +${assignment.reward} XP</button>
-        <button id="printAssignmentBtn" class="ghost-tool">Εκτύπωση</button>
-      </div>
-      <div class="path-step-list assignment-steps">
-        ${stats.refs.map((ref, i) => `
-          <div class="path-step-row ${state.answers[ref.id] ? 'path-done' : ''}">
-            <div><strong>${i + 1}. ${escapeHTML(ref.ex.title)}</strong><span>${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</span></div>
-            <button class="open-assignment-ref" data-ref="${escapeHTML(ref.id)}">${state.answers[ref.id] ? 'Ξανάνοιγμα' : 'Λύση'}</button>
-          </div>
-        `).join('')}
-      </div>
+
+      <section class="assignment-question-nav">
+        <div class="assignment-dots">${assignmentQuestionButtonsHTML(refs, currentIndex)}</div>
+        <div class="assignment-nav-actions">
+          <button id="prevAssignmentQuestion" class="ghost-tool" ${currentIndex <= 0 ? 'disabled' : ''}>← Προηγούμενη</button>
+          <button id="nextUnsolvedAssignment" class="ghost-tool" ${nextUnsolvedIndex >= 0 ? '' : 'disabled'}>Επόμενη άλυτη</button>
+          <button id="nextAssignmentQuestion" ${currentIndex >= refs.length - 1 ? 'disabled' : ''}>Επόμενη →</button>
+        </div>
+      </section>
+
+      <section class="assignment-current-question">
+        <div class="assignment-current-meta">
+          <span>Ερώτηση ${currentIndex + 1}/${refs.length}</span>
+          <span>${escapeHTML(current.u.place)} • ${escapeHTML(current.u.title)}</span>
+          <span class="${currentSolved ? 'status-done' : 'status-todo'}">${currentSolved ? 'Λυμένη' : 'Άλυτη'}</span>
+        </div>
+        ${exerciseHTML(current.ex, current.u.id, current.idx)}
+      </section>
+
+      <details class="assignment-overview" open>
+        <summary>Λίστα ερωτήσεων αποστολής</summary>
+        <div class="assignment-compact-list">${assignmentCompactListHTML(refs, currentIndex)}</div>
+      </details>
     </article>
   `;
+
+  bindExercises(current.u);
   $('#backAssignmentsBtn').addEventListener('click', renderClassMissionCenter);
-  $('#nextAssignmentTask').addEventListener('click', () => next && openAssignmentExercise(next.id));
   $('#claimAssignmentReward').addEventListener('click', () => claimAssignmentReward(id));
   $('#printAssignmentBtn').addEventListener('click', () => window.print());
-  $$('.open-assignment-ref').forEach(btn => btn.addEventListener('click', () => openAssignmentExercise(btn.dataset.ref)));
+  $('#prevAssignmentQuestion').addEventListener('click', () => {
+    setAssignmentCursor(id, prevIndex, refs.length);
+    renderClassMissionDetail(id);
+  });
+  $('#nextAssignmentQuestion').addEventListener('click', () => {
+    setAssignmentCursor(id, nextIndex, refs.length);
+    renderClassMissionDetail(id);
+  });
+  $('#nextUnsolvedAssignment').addEventListener('click', () => {
+    const target = nextUnsolvedIndex >= 0 ? nextUnsolvedIndex : firstUnsolvedIndex;
+    if (target >= 0) {
+      setAssignmentCursor(id, target, refs.length);
+      renderClassMissionDetail(id);
+    }
+  });
+  $$('[data-jump]').forEach(btn => btn.addEventListener('click', () => {
+    setAssignmentCursor(id, Number(btn.dataset.jump), refs.length);
+    renderClassMissionDetail(id);
+  }));
   $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
