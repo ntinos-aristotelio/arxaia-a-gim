@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_8';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_8';
+const stateKey = 'akadimiaArxaionProgressV2_9';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_9';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -31,6 +31,8 @@ const defaultState = {
   favoriteTheory: {},
   learningPathClaims: {},
   activeLearningPath: 'first_steps',
+  classAssignments: {},
+  assignmentClaims: {},
   teacherPrefs: {}
 };
 
@@ -61,6 +63,8 @@ state.masteredTheory = state.masteredTheory || {};
 state.favoriteTheory = state.favoriteTheory || {};
 state.learningPathClaims = state.learningPathClaims || {};
 state.activeLearningPath = state.activeLearningPath || 'first_steps';
+state.classAssignments = state.classAssignments || {};
+state.assignmentClaims = state.assignmentClaims || {};
 state.teacherPrefs = state.teacherPrefs || {};
 
 let mapFilter = 'all';
@@ -1596,7 +1600,7 @@ function bindReviewOpenButtons() {
 function exportProgress() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    build: '2.7',
+    build: '2.9',
     student: state.name,
     rank: rank(),
     xp: state.xp,
@@ -1617,7 +1621,9 @@ function exportProgress() {
     lastDailyClaim: state.lastDailyClaim,
     challengeHistory: state.challengeHistory,
     masteredTheory: state.masteredTheory,
-    favoriteTheory: state.favoriteTheory
+    favoriteTheory: state.favoriteTheory,
+    classAssignments: state.classAssignments,
+    assignmentClaims: state.assignmentClaims
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2144,6 +2150,7 @@ function renderTeacherHub() {
 
       <div class="teacher-next-actions">
         <button id="hubTestBtn">Δημιουργία τεστ</button>
+        <button id="hubAssignmentBtn" class="ghost-tool">Δημιουργός αποστολών</button>
         <button id="hubClassBtn" class="ghost-tool">Λειτουργία τάξης</button>
         <button id="hubPrintBtn" class="ghost-tool">Εκτύπωση χάρτη ύλης</button>
       </div>
@@ -2167,6 +2174,7 @@ function renderTeacherHub() {
   `;
   $$('.tiny-open').forEach(btn => btn.addEventListener('click', () => openUnit(Number(btn.dataset.unit))));
   $('#hubTestBtn').addEventListener('click', renderTestGenerator);
+  $('#hubAssignmentBtn').addEventListener('click', renderAssignmentBuilder);
   $('#hubClassBtn').addEventListener('click', renderClassroomMode);
   $('#hubPrintBtn').addEventListener('click', () => window.print());
   $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2377,6 +2385,10 @@ function importProgressFromFile(file) {
       if (payload.dailyStreak !== undefined) next.dailyStreak = Number(payload.dailyStreak) || 0;
       if (payload.lastDailyClaim) next.lastDailyClaim = payload.lastDailyClaim;
       if (Array.isArray(payload.challengeHistory)) next.challengeHistory = payload.challengeHistory;
+      if (payload.masteredTheory && typeof payload.masteredTheory === 'object') next.masteredTheory = payload.masteredTheory;
+      if (payload.favoriteTheory && typeof payload.favoriteTheory === 'object') next.favoriteTheory = payload.favoriteTheory;
+      if (payload.classAssignments && typeof payload.classAssignments === 'object') next.classAssignments = payload.classAssignments;
+      if (payload.assignmentClaims && typeof payload.assignmentClaims === 'object') next.assignmentClaims = payload.assignmentClaims;
       state = next;
       save();
       toast('Η πρόοδος εισήχθη.');
@@ -2852,6 +2864,343 @@ function claimLearningPath(pathId) {
   toast('Σφραγίστηκε η διαδρομή! +' + (path.reward || 120) + ' XP');
 }
 
+
+function exerciseRefById(id) {
+  const found = findExerciseById(id);
+  if (!found.unit || !found.ex) return null;
+  const unitIndex = ACADEMY_UNITS.findIndex(u => u.id === found.unit.id);
+  if (unitIndex < 0) return null;
+  return { u: found.unit, unitIndex, ex: found.ex, idx: found.idx, id };
+}
+
+function encodeAssignmentPayload(payload) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+
+function decodeAssignmentPayload(code) {
+  const cleaned = String(code || '')
+    .trim()
+    .replace(/^ΑΠΟΣΤΟΛΗ\s*:/i, '')
+    .replace(/^MISSION\s*:/i, '')
+    .replace(/\s+/g, '');
+  if (!cleaned) throw new Error('empty');
+  return JSON.parse(decodeURIComponent(escape(atob(cleaned))));
+}
+
+function validateAssignmentPayload(payload) {
+  if (!payload || typeof payload !== 'object') throw new Error('payload');
+  if (!Array.isArray(payload.ids) || !payload.ids.length) throw new Error('ids');
+  const validIds = payload.ids.filter(id => !!exerciseRefById(id));
+  if (!validIds.length) throw new Error('validIds');
+  return {
+    v: 1,
+    app: 'akadimia-arxaion',
+    id: payload.id || ('mission_' + Date.now()),
+    title: String(payload.title || 'Αποστολή τάξης').slice(0, 80),
+    instructions: String(payload.instructions || 'Λύσε τις δοκιμασίες που όρισε ο καθηγητής.').slice(0, 500),
+    due: String(payload.due || '').slice(0, 40),
+    createdAt: payload.createdAt || new Date().toISOString(),
+    reward: Math.max(20, Math.min(500, Number(payload.reward || 120))),
+    ids: validIds.slice(0, 80)
+  };
+}
+
+function assignmentRefs(assignment) {
+  return (assignment.ids || []).map(exerciseRefById).filter(Boolean);
+}
+
+function assignmentStats(assignment) {
+  const refs = assignmentRefs(assignment);
+  const solved = refs.filter(ref => state.answers[ref.id]).length;
+  const percent = refs.length ? Math.round((solved / refs.length) * 100) : 0;
+  return { refs, solved, total: refs.length, percent };
+}
+
+function openAssignmentExercise(id) {
+  const ref = exerciseRefById(id);
+  if (!ref) return toast('Η δοκιμασία δεν βρέθηκε.');
+  state.exerciseMode[ref.u.id] = 'all';
+  openUnit(ref.unitIndex);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-id="${ref.id}"]`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 180);
+}
+
+function renderAssignmentBuilder() {
+  if (!ensureTeacherAccess()) return;
+  featureStart();
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel assignment-builder">
+      <p class="eyebrow">Build 2.9 • Εργαλεία καθηγητή</p>
+      <h2>📦 Δημιουργός αποστολών</h2>
+      <p>Φτιάξε μια μικρή εργασία από τις υπάρχουσες δοκιμασίες της Ακαδημίας. Η εφαρμογή παράγει έναν κωδικό αποστολής που μπορούν να επικολλήσουν οι μαθητές στο κουμπί <strong>Αποστολή τάξης</strong>.</p>
+
+      <div class="assignment-layout">
+        <section class="generator-box">
+          <h3>1. Ταυτότητα αποστολής</h3>
+          <label class="form-row"><span>Τίτλος</span><input id="assignmentTitle" value="Αποστολή τάξης"></label>
+          <label class="form-row"><span>Οδηγίες</span><textarea id="assignmentInstructions" rows="4">Λύσε τις δοκιμασίες και έλα στην τάξη έτοιμος/η για συζήτηση.</textarea></label>
+          <label class="form-row"><span>Προθεσμία / σημείωση</span><input id="assignmentDue" placeholder="π.χ. μέχρι την Παρασκευή"></label>
+          <label class="form-row"><span>Πλήθος δοκιμασιών</span><input id="assignmentCount" type="number" min="3" max="50" value="12"></label>
+          <label class="form-row"><span>Bonus XP ολοκλήρωσης</span><input id="assignmentReward" type="number" min="20" max="500" value="120"></label>
+        </section>
+
+        <section class="generator-box">
+          <h3>2. Ύλη και τύποι</h3>
+          <div class="check-toolbar">
+            <button id="assignmentSelectAll" class="ghost-tool">Όλες</button>
+            <button id="assignmentClearUnits" class="ghost-tool">Καμία</button>
+            <button id="assignmentSchoolOnly" class="ghost-tool">Μόνο Ενότητες 1-10</button>
+          </div>
+          <div class="check-grid tall">${assignmentUnitOptionHTML()}</div>
+          <h4>Τύποι δοκιμασιών</h4>
+          <div class="check-grid">${assignmentTypeOptionHTML()}</div>
+          <label class="checkline"><input id="assignmentIncludeSolved" type="checkbox" checked> <span>Να επιτρέπονται και ήδη λυμένες δοκιμασίες</span></label>
+          <label class="checkline"><input id="assignmentPreferBoss" type="checkbox"> <span>Να μπει τουλάχιστον ένα mini boss, αν υπάρχει</span></label>
+          <button id="makeAssignmentBtn">Δημιουργία αποστολής</button>
+        </section>
+      </div>
+      <div id="assignmentOutput"></div>
+    </article>
+  `;
+  $('#assignmentSelectAll').addEventListener('click', () => $$('input[name="assignmentUnit"]').forEach(x => x.checked = true));
+  $('#assignmentClearUnits').addEventListener('click', () => $$('input[name="assignmentUnit"]').forEach(x => x.checked = false));
+  $('#assignmentSchoolOnly').addEventListener('click', () => $$('input[name="assignmentUnit"]').forEach(x => x.checked = /Ενότητα\s+\d+/.test(ACADEMY_UNITS.find(u => u.id === x.value)?.title || '')));
+  $('#makeAssignmentBtn').addEventListener('click', generateClassAssignment);
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function assignmentUnitOptionHTML() {
+  return ACADEMY_UNITS.map((u, i) => `
+    <label class="checkline">
+      <input type="checkbox" name="assignmentUnit" value="${escapeHTML(u.id)}" checked>
+      <span>${i + 1}. ${escapeHTML(u.place)} — ${escapeHTML(u.title)}</span>
+    </label>
+  `).join('');
+}
+
+function assignmentTypeOptionHTML() {
+  return ['choice', 'fill', 'match', 'sort', 'tablefill', 'duel'].map(type => `
+    <label class="checkline compact">
+      <input type="checkbox" name="assignmentType" value="${type}" checked>
+      <span>${exerciseTypeLabel(type)}</span>
+    </label>
+  `).join('');
+}
+
+function readAssignmentForm() {
+  return {
+    title: $('#assignmentTitle').value.trim() || 'Αποστολή τάξης',
+    instructions: $('#assignmentInstructions').value.trim() || 'Λύσε τις δοκιμασίες που όρισε ο καθηγητής.',
+    due: $('#assignmentDue').value.trim(),
+    count: Math.max(3, Math.min(50, Number($('#assignmentCount').value) || 12)),
+    reward: Math.max(20, Math.min(500, Number($('#assignmentReward').value) || 120)),
+    unitIds: $$('input[name="assignmentUnit"]:checked').map(x => x.value),
+    types: $$('input[name="assignmentType"]:checked').map(x => x.value),
+    includeSolved: $('#assignmentIncludeSolved').checked,
+    preferBoss: $('#assignmentPreferBoss').checked
+  };
+}
+
+function generateClassAssignment() {
+  const cfg = readAssignmentForm();
+  if (!cfg.unitIds.length) return toast('Διάλεξε τουλάχιστον μία ενότητα.');
+  if (!cfg.types.length) return toast('Διάλεξε τουλάχιστον έναν τύπο.');
+  let pool = shuffle(allRefsByFilters(cfg.unitIds, cfg.types, cfg.includeSolved));
+  if (!pool.length) return toast('Δεν βρέθηκαν δοκιμασίες με αυτά τα κριτήρια.');
+  const chosen = [];
+  if (cfg.preferBoss) {
+    const boss = pool.find(ref => ref.ex.type === 'duel');
+    if (boss) chosen.push(boss);
+  }
+  pool.forEach(ref => {
+    if (chosen.length >= cfg.count) return;
+    if (!chosen.some(x => x.id === ref.id)) chosen.push(ref);
+  });
+  const payload = validateAssignmentPayload({
+    id: 'mission_' + Date.now(),
+    title: cfg.title,
+    instructions: cfg.instructions,
+    due: cfg.due,
+    reward: cfg.reward,
+    createdAt: new Date().toISOString(),
+    ids: chosen.map(ref => ref.id)
+  });
+  const code = encodeAssignmentPayload(payload);
+  const refs = assignmentRefs(payload);
+  $('#assignmentOutput').innerHTML = `
+    <section class="generated-assignment">
+      <div class="assignment-code-head">
+        <div>
+          <p class="eyebrow">Έτοιμη αποστολή</p>
+          <h3>${escapeHTML(payload.title)}</h3>
+          <p>${escapeHTML(payload.instructions)}</p>
+          ${payload.due ? `<p><strong>Προθεσμία:</strong> ${escapeHTML(payload.due)}</p>` : ''}
+        </div>
+        <div class="assignment-score"><strong>${refs.length}</strong><span>δοκιμασίες</span></div>
+      </div>
+      <label class="form-row"><span>Κωδικός αποστολής για τους μαθητές</span><textarea id="assignmentCodeOutput" rows="5" readonly>${escapeHTML(code)}</textarea></label>
+      <div class="assignment-actions">
+        <button id="copyAssignmentCode">Αντιγραφή κωδικού</button>
+        <button id="saveAssignmentLocally" class="ghost-tool">Αποθήκευση και εδώ</button>
+        <button id="printAssignmentPlan" class="ghost-tool">Εκτύπωση πλάνου</button>
+      </div>
+      <ol class="assignment-preview-list">
+        ${refs.map((ref, i) => `<li><strong>${i + 1}. ${escapeHTML(ref.ex.title)}</strong><br><span>${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</span></li>`).join('')}
+      </ol>
+    </section>
+  `;
+  $('#copyAssignmentCode').addEventListener('click', () => copyText(code, 'Ο κωδικός αποστολής αντιγράφηκε.'));
+  $('#saveAssignmentLocally').addEventListener('click', () => {
+    state.classAssignments[payload.id] = payload;
+    save();
+    toast('Η αποστολή αποθηκεύτηκε στην εφαρμογή.');
+  });
+  $('#printAssignmentPlan').addEventListener('click', () => window.print());
+  $('#assignmentOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyText(text, okMessage = 'Αντιγράφηκε.') {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(okMessage)).catch(() => fallbackCopyText(text, okMessage));
+  } else {
+    fallbackCopyText(text, okMessage);
+  }
+}
+
+function fallbackCopyText(text, okMessage) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+  toast(okMessage);
+}
+
+function renderClassMissionCenter() {
+  featureStart();
+  const assignments = Object.values(state.classAssignments || {}).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel class-mission-center">
+      <p class="eyebrow">Build 2.9 • Μαθητική αποστολή</p>
+      <h2>🎒 Αποστολή τάξης</h2>
+      <p>Επικόλλησε τον κωδικό που θα σου δώσει ο καθηγητής. Η αποστολή θα εμφανιστεί εδώ και θα μετράει την πρόοδό σου με βάση τις δοκιμασίες που λύνεις.</p>
+      <div class="mission-import-box">
+        <textarea id="classMissionCode" rows="4" placeholder="Επικόλλησε εδώ τον κωδικό αποστολής..."></textarea>
+        <button id="importClassMissionBtn">Φόρτωση αποστολής</button>
+      </div>
+      <div class="assignment-list">
+        ${assignments.length ? assignments.map(assignmentCardHTML).join('') : '<div class="empty-state">Δεν έχεις φορτώσει ακόμη αποστολή τάξης.</div>'}
+      </div>
+    </article>
+  `;
+  $('#importClassMissionBtn').addEventListener('click', importClassMissionCode);
+  $$('.open-assignment').forEach(btn => btn.addEventListener('click', () => renderClassMissionDetail(btn.dataset.assignment)));
+  $$('.remove-assignment').forEach(btn => btn.addEventListener('click', () => removeClassAssignment(btn.dataset.assignment)));
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function assignmentCardHTML(assignment) {
+  const stats = assignmentStats(assignment);
+  const claimed = !!state.assignmentClaims[assignment.id];
+  return `
+    <section class="assignment-card">
+      <div>
+        <h3>${claimed ? '🏅' : '📦'} ${escapeHTML(assignment.title)}</h3>
+        <p>${escapeHTML(assignment.instructions)}</p>
+        ${assignment.due ? `<small>Προθεσμία: ${escapeHTML(assignment.due)}</small>` : ''}
+        <div class="mini-progress"><span style="width:${stats.percent}%"></span></div>
+        <strong>${stats.solved}/${stats.total}</strong> δοκιμασίες • ${stats.percent}%
+      </div>
+      <div class="assignment-actions vertical">
+        <button class="open-assignment" data-assignment="${escapeHTML(assignment.id)}">Άνοιγμα</button>
+        <button class="remove-assignment ghost-tool" data-assignment="${escapeHTML(assignment.id)}">Αφαίρεση</button>
+      </div>
+    </section>
+  `;
+}
+
+function importClassMissionCode() {
+  try {
+    const payload = validateAssignmentPayload(decodeAssignmentPayload($('#classMissionCode').value));
+    state.classAssignments[payload.id] = payload;
+    save();
+    toast('Η αποστολή τάξης φορτώθηκε.');
+    renderClassMissionCenter();
+  } catch (err) {
+    toast('Ο κωδικός αποστολής δεν είναι έγκυρος.');
+  }
+}
+
+function removeClassAssignment(id) {
+  if (!confirm('Να αφαιρεθεί αυτή η αποστολή από τη συσκευή;')) return;
+  delete state.classAssignments[id];
+  save();
+  renderClassMissionCenter();
+}
+
+function renderClassMissionDetail(id) {
+  const assignment = state.classAssignments[id];
+  if (!assignment) return renderClassMissionCenter();
+  const stats = assignmentStats(assignment);
+  const next = stats.refs.find(ref => !state.answers[ref.id]);
+  const claimed = !!state.assignmentClaims[id];
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel assignment-detail">
+      <p class="eyebrow">Αποστολή τάξης</p>
+      <h2>📦 ${escapeHTML(assignment.title)}</h2>
+      <p>${escapeHTML(assignment.instructions)}</p>
+      ${assignment.due ? `<p><strong>Προθεσμία:</strong> ${escapeHTML(assignment.due)}</p>` : ''}
+      <div class="assignment-progress-hero">
+        <div class="path-score"><strong>${stats.percent}%</strong><span>πορεία</span></div>
+        <div>
+          <div class="mini-progress"><span style="width:${stats.percent}%"></span></div>
+          <p><strong>${stats.solved}/${stats.total}</strong> δοκιμασίες λυμένες.</p>
+          <p>${claimed ? 'Η ανταμοιβή έχει δοθεί.' : 'Όταν λυθούν όλες, μπορείς να πάρεις την ανταμοιβή της αποστολής.'}</p>
+        </div>
+      </div>
+      <div class="assignment-actions">
+        <button id="backAssignmentsBtn" class="ghost-tool">Πίσω στις αποστολές</button>
+        <button id="nextAssignmentTask" ${next ? '' : 'disabled'}>Επόμενη άλυτη</button>
+        <button id="claimAssignmentReward" ${stats.percent >= 100 && !claimed ? '' : 'disabled'}>Σφράγισε αποστολή +${assignment.reward} XP</button>
+        <button id="printAssignmentBtn" class="ghost-tool">Εκτύπωση</button>
+      </div>
+      <div class="path-step-list assignment-steps">
+        ${stats.refs.map((ref, i) => `
+          <div class="path-step-row ${state.answers[ref.id] ? 'path-done' : ''}">
+            <div><strong>${i + 1}. ${escapeHTML(ref.ex.title)}</strong><span>${escapeHTML(ref.u.place)} • ${escapeHTML(ref.u.title)} • ${exerciseTypeLabel(ref.ex.type)}</span></div>
+            <button class="open-assignment-ref" data-ref="${escapeHTML(ref.id)}">${state.answers[ref.id] ? 'Ξανάνοιγμα' : 'Λύση'}</button>
+          </div>
+        `).join('')}
+      </div>
+    </article>
+  `;
+  $('#backAssignmentsBtn').addEventListener('click', renderClassMissionCenter);
+  $('#nextAssignmentTask').addEventListener('click', () => next && openAssignmentExercise(next.id));
+  $('#claimAssignmentReward').addEventListener('click', () => claimAssignmentReward(id));
+  $('#printAssignmentBtn').addEventListener('click', () => window.print());
+  $$('.open-assignment-ref').forEach(btn => btn.addEventListener('click', () => openAssignmentExercise(btn.dataset.ref)));
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function claimAssignmentReward(id) {
+  const assignment = state.classAssignments[id];
+  if (!assignment) return;
+  const stats = assignmentStats(assignment);
+  if (stats.percent < 100) return toast('Λύσε πρώτα όλες τις δοκιμασίες της αποστολής.');
+  if (state.assignmentClaims[id]) return toast('Η ανταμοιβή έχει ήδη δοθεί.');
+  state.assignmentClaims[id] = new Date().toISOString();
+  state.xp += Number(assignment.reward || 120);
+  state.coins += Math.ceil(Number(assignment.reward || 120) / 20);
+  addBadge('Ολοκλήρωση αποστολής τάξης');
+  save();
+  renderStats();
+  renderClassMissionDetail(id);
+  toast('Η αποστολή σφραγίστηκε!');
+}
+
 function normalize(s) {
   return (s || '')
     .toLowerCase()
@@ -2904,6 +3253,7 @@ $('#studyPlanBtn').addEventListener('click', renderStudyPlan);
 $('#studentProfileBtn').addEventListener('click', renderStudentProfile);
 $('#academyMentorBtn').addEventListener('click', renderAcademyMentor);
 $('#learningPathsBtn').addEventListener('click', renderLearningPaths);
+$('#classMissionBtn').addEventListener('click', renderClassMissionCenter);
 $('#dailyMissionsBtn').addEventListener('click', renderDailyMissions);
 $('#challengeArenaBtn').addEventListener('click', renderChallengeArena);
 $('#knowledgeLibraryBtn').addEventListener('click', renderKnowledgeLibrary);
@@ -2911,6 +3261,7 @@ $('#theoryCardsBtn').addEventListener('click', renderTheoryCards);
 $('#certificateBtn').addEventListener('click', renderCertificate);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
+$('#assignmentBuilderBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderAssignmentBuilder(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
 $('#randomChallengeBtn').addEventListener('click', openRandomUnsolved);
 $('#exportProgressBtn').addEventListener('click', () => { if (ensureTeacherAccess()) exportProgress(); });
