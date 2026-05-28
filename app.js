@@ -1,8 +1,8 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const stateKey = 'akadimiaArxaionProgressV2_10';
-const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_10';
+const stateKey = 'akadimiaArxaionProgressV2_12';
+const teacherToolsKey = 'akadimiaTeacherToolsUnlockedV2_12';
 const TEACHER_CODE = 'akadimia2026';
 const defaultState = {
   name: '',
@@ -34,7 +34,9 @@ const defaultState = {
   classAssignments: {},
   assignmentClaims: {},
   assignmentCursors: {},
-  teacherPrefs: {}
+  assignmentSubmissions: {},
+  teacherPrefs: {},
+  classGradebook: []
 };
 
 let loadedState = {};
@@ -67,7 +69,9 @@ state.activeLearningPath = state.activeLearningPath || 'first_steps';
 state.classAssignments = state.classAssignments || {};
 state.assignmentClaims = state.assignmentClaims || {};
 state.assignmentCursors = state.assignmentCursors || {};
+state.assignmentSubmissions = state.assignmentSubmissions || {};
 state.teacherPrefs = state.teacherPrefs || {};
+state.classGradebook = Array.isArray(state.classGradebook) ? state.classGradebook : [];
 
 let mapFilter = 'all';
 let mapSearch = '';
@@ -2909,6 +2913,473 @@ function validateAssignmentPayload(payload) {
   };
 }
 
+
+function encodeSubmissionPayload(payload) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+
+function decodeSubmissionPayload(code) {
+  const cleaned = String(code || '')
+    .trim()
+    .replace(/^ΠΑΡΑΔΟΣΗ\s*:/i, '')
+    .replace(/^SUBMISSION\s*:/i, '')
+    .replace(/\s+/g, '');
+  if (!cleaned) throw new Error('emptySubmission');
+  return JSON.parse(decodeURIComponent(escape(atob(cleaned))));
+}
+
+function buildAssignmentSubmission(assignment) {
+  const stats = assignmentStats(assignment);
+  const items = stats.refs.map(ref => ({
+    id: ref.id,
+    unitId: ref.u.id,
+    place: ref.u.place,
+    unitTitle: ref.u.title,
+    title: ref.ex.title,
+    type: ref.ex.type,
+    solved: !!state.answers[ref.id],
+    mistakes: Number((state.mistakes[ref.id] && state.mistakes[ref.id].count) || 0)
+  }));
+  return {
+    v: 1,
+    app: 'akadimia-arxaion-submission',
+    assignmentId: assignment.id,
+    assignmentTitle: assignment.title,
+    assignmentDue: assignment.due || '',
+    studentName: state.name || 'Μαθητής',
+    rank: rank(),
+    submittedAt: new Date().toISOString(),
+    total: stats.total,
+    solved: stats.solved,
+    percent: stats.percent,
+    rewardClaimed: !!state.assignmentClaims[assignment.id],
+    xp: state.xp,
+    coins: state.coins,
+    badgesCount: (state.badges || []).length,
+    items
+  };
+}
+
+function validateSubmissionPayload(payload) {
+  if (!payload || payload.app !== 'akadimia-arxaion-submission') throw new Error('submissionApp');
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  if (!items.length) throw new Error('submissionItems');
+  const validItems = items.map(item => {
+    const ref = exerciseRefById(item.id);
+    return {
+      id: String(item.id || ''),
+      ref,
+      title: String(item.title || (ref && ref.ex ? ref.ex.title : 'Άγνωστη δοκιμασία')),
+      place: String(item.place || (ref && ref.u ? ref.u.place : 'Άγνωστη περιοχή')),
+      unitTitle: String(item.unitTitle || (ref && ref.u ? ref.u.title : '')),
+      type: String(item.type || (ref && ref.ex ? ref.ex.type : '')),
+      solved: !!item.solved,
+      mistakes: Math.max(0, Number(item.mistakes || 0))
+    };
+  });
+  const solved = validItems.filter(item => item.solved).length;
+  const total = validItems.length;
+  return {
+    v: 1,
+    app: 'akadimia-arxaion-submission',
+    assignmentId: String(payload.assignmentId || ''),
+    assignmentTitle: String(payload.assignmentTitle || 'Αποστολή τάξης').slice(0, 120),
+    assignmentDue: String(payload.assignmentDue || '').slice(0, 80),
+    studentName: String(payload.studentName || 'Μαθητής').slice(0, 80),
+    rank: String(payload.rank || '').slice(0, 80),
+    submittedAt: String(payload.submittedAt || new Date().toISOString()),
+    total,
+    solved,
+    percent: total ? Math.round((solved / total) * 100) : 0,
+    rewardClaimed: !!payload.rewardClaimed,
+    xp: Number(payload.xp || 0),
+    coins: Number(payload.coins || 0),
+    badgesCount: Number(payload.badgesCount || 0),
+    items: validItems
+  };
+}
+
+function submissionDateLabel(value) {
+  try {
+    return new Date(value).toLocaleString('el-GR');
+  } catch (err) {
+    return value || '';
+  }
+}
+
+function submissionCodeBoxHTML(submission, code) {
+  return `
+    <section class="submission-box">
+      <div class="submission-head">
+        <div>
+          <p class="eyebrow">Παράδοση μαθητή</p>
+          <h3>📨 Κωδικός παράδοσης</h3>
+          <p>Αντιγραφή και αποστολή στον καθηγητή. Περιλαμβάνει πρόοδο, λυμένες δοκιμασίες και λάθη της συγκεκριμένης αποστολής.</p>
+        </div>
+        <div class="assignment-score"><strong>${submission.percent}%</strong><span>${submission.solved}/${submission.total}</span></div>
+      </div>
+      <label class="form-row"><span>Κωδικός παράδοσης</span><textarea id="submissionCodeOutput" rows="5" readonly>${escapeHTML(code)}</textarea></label>
+      <div class="assignment-actions">
+        <button id="copySubmissionCode">Αντιγραφή παράδοσης</button>
+        <button id="downloadSubmissionCode" class="ghost-tool">Λήψη .txt</button>
+        <button id="printSubmissionSummary" class="ghost-tool">Εκτύπωση σύνοψης</button>
+      </div>
+    </section>
+  `;
+}
+
+function createAssignmentSubmission(id) {
+  const assignment = state.classAssignments[id];
+  if (!assignment) return toast('Η αποστολή δεν βρέθηκε.');
+  const submission = buildAssignmentSubmission(assignment);
+  const code = encodeSubmissionPayload(submission);
+  state.assignmentSubmissions[id] = { code, createdAt: submission.submittedAt, percent: submission.percent, solved: submission.solved, total: submission.total };
+  save();
+  renderClassMissionDetail(id);
+  setTimeout(() => {
+    const out = $('#assignmentSubmissionOutput');
+    if (out) out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+  toast('Δημιουργήθηκε κωδικός παράδοσης.');
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function submissionReportHTML(submission) {
+  const byArea = {};
+  submission.items.forEach(item => {
+    const key = item.place || 'Άλλη περιοχή';
+    if (!byArea[key]) byArea[key] = { total: 0, solved: 0, mistakes: 0 };
+    byArea[key].total += 1;
+    if (item.solved) byArea[key].solved += 1;
+    byArea[key].mistakes += item.mistakes;
+  });
+  const areaRows = Object.entries(byArea).map(([place, row]) => `
+    <tr><td>${escapeHTML(place)}</td><td>${row.solved}/${row.total}</td><td>${row.mistakes}</td></tr>
+  `).join('');
+  const itemRows = submission.items.map((item, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><strong>${escapeHTML(item.title)}</strong><br><small>${escapeHTML(item.place)} • ${escapeHTML(item.unitTitle)} • ${escapeHTML(exerciseTypeLabel(item.type))}</small></td>
+      <td>${item.solved ? '✓ Λύθηκε' : '— Άλυτη'}</td>
+      <td>${item.mistakes}</td>
+    </tr>
+  `).join('');
+  return `
+    <section class="submission-report">
+      <div class="submission-report-head">
+        <div>
+          <p class="eyebrow">Αναφορά παράδοσης</p>
+          <h3>${escapeHTML(submission.studentName)} — ${escapeHTML(submission.assignmentTitle)}</h3>
+          <p>${submission.assignmentDue ? `<strong>Προθεσμία:</strong> ${escapeHTML(submission.assignmentDue)} • ` : ''}<strong>Παράδοση:</strong> ${escapeHTML(submissionDateLabel(submission.submittedAt))}</p>
+        </div>
+        <div class="assignment-score"><strong>${submission.percent}%</strong><span>${submission.solved}/${submission.total}</span></div>
+      </div>
+      <div class="submission-metrics">
+        <div><strong>${submission.xp}</strong><span>XP μαθητή</span></div>
+        <div><strong>${submission.coins}</strong><span>οβολοί</span></div>
+        <div><strong>${submission.badgesCount}</strong><span>σήματα</span></div>
+        <div><strong>${submission.rewardClaimed ? 'Ναι' : 'Όχι'}</strong><span>σφραγίστηκε</span></div>
+      </div>
+      <h4>Σύνοψη ανά περιοχή</h4>
+      <table class="submission-table"><thead><tr><th>Περιοχή</th><th>Λυμένες</th><th>Λάθη</th></tr></thead><tbody>${areaRows}</tbody></table>
+      <h4>Αναλυτικά</h4>
+      <table class="submission-table"><thead><tr><th>#</th><th>Δοκιμασία</th><th>Κατάσταση</th><th>Λάθη</th></tr></thead><tbody>${itemRows}</tbody></table>
+      <div class="assignment-actions no-print"><button id="printSubmissionReport">Εκτύπωση αναφοράς</button></div>
+    </section>
+  `;
+}
+
+function renderSubmissionReview() {
+  if (!ensureTeacherAccess()) return;
+  featureStart();
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel submission-review-panel">
+      <p class="eyebrow">Build 2.12 • Εργαλεία καθηγητή</p>
+      <h2>📨 Έλεγχος παραδόσεων</h2>
+      <p>Επικόλλησε εδώ τον κωδικό παράδοσης που θα σου στείλει ο μαθητής μετά την Αποστολή τάξης. Θα δεις ποσοστό, λυμένες δοκιμασίες, λάθη και αναφορά ανά περιοχή.</p>
+      <div class="mission-import-box">
+        <textarea id="submissionReviewCode" rows="5" placeholder="Επικόλλησε εδώ τον κωδικό παράδοσης μαθητή..."></textarea>
+        <button id="checkSubmissionBtn">Έλεγχος παράδοσης</button>
+      </div>
+      <div id="submissionReviewOutput"></div>
+    </article>
+  `;
+  $('#checkSubmissionBtn').addEventListener('click', () => {
+    try {
+      const submission = validateSubmissionPayload(decodeSubmissionPayload($('#submissionReviewCode').value));
+      $('#submissionReviewOutput').innerHTML = submissionReportHTML(submission);
+      const printBtn = $('#printSubmissionReport');
+      if (printBtn) printBtn.addEventListener('click', () => window.print());
+      $('#submissionReviewOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+      toast('Ο κωδικός παράδοσης δεν είναι έγκυρος.');
+    }
+  });
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+
+function submissionRecordKey(submission) {
+  return [submission.assignmentId || submission.assignmentTitle, submission.studentName, submission.submittedAt].join('|');
+}
+
+function gradebookRecordFromSubmission(submission) {
+  const areaStats = {};
+  submission.items.forEach(item => {
+    const key = item.place || 'Άλλη περιοχή';
+    if (!areaStats[key]) areaStats[key] = { total: 0, solved: 0, mistakes: 0 };
+    areaStats[key].total += 1;
+    if (item.solved) areaStats[key].solved += 1;
+    areaStats[key].mistakes += item.mistakes;
+  });
+  return {
+    key: submissionRecordKey(submission),
+    importedAt: new Date().toISOString(),
+    studentName: submission.studentName,
+    rank: submission.rank,
+    assignmentId: submission.assignmentId,
+    assignmentTitle: submission.assignmentTitle,
+    assignmentDue: submission.assignmentDue,
+    submittedAt: submission.submittedAt,
+    total: submission.total,
+    solved: submission.solved,
+    percent: submission.percent,
+    rewardClaimed: submission.rewardClaimed,
+    xp: submission.xp,
+    coins: submission.coins,
+    badgesCount: submission.badgesCount,
+    mistakes: submission.items.reduce((sum, item) => sum + item.mistakes, 0),
+    areaStats,
+    items: submission.items.map(item => ({
+      id: item.id,
+      title: item.title,
+      place: item.place,
+      unitTitle: item.unitTitle,
+      type: item.type,
+      solved: item.solved,
+      mistakes: item.mistakes
+    }))
+  };
+}
+
+function parseSubmissionCodes(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const chunks = raw.split(/\n\s*\n/g).map(x => x.trim()).filter(Boolean);
+  const candidates = chunks.length > 1 ? chunks : raw.split(/\s+/).map(x => x.trim()).filter(Boolean);
+  const out = [];
+  candidates.forEach(part => {
+    try {
+      out.push(validateSubmissionPayload(decodeSubmissionPayload(part)));
+    } catch (err) {
+      // ignore invalid token; final message will report if nothing was imported
+    }
+  });
+  return out;
+}
+
+function addSubmissionsToGradebook(submissions) {
+  const existing = new Set((state.classGradebook || []).map(r => r.key));
+  let added = 0;
+  let duplicates = 0;
+  submissions.forEach(submission => {
+    const record = gradebookRecordFromSubmission(submission);
+    if (existing.has(record.key)) {
+      duplicates += 1;
+      return;
+    }
+    state.classGradebook.push(record);
+    existing.add(record.key);
+    added += 1;
+  });
+  state.classGradebook.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+  save();
+  return { added, duplicates };
+}
+
+function average(values) {
+  const nums = values.map(Number).filter(n => Number.isFinite(n));
+  return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+}
+
+function groupBy(list, getter) {
+  return list.reduce((acc, item) => {
+    const key = getter(item) || 'Άγνωστο';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+function gradebookSummary(records = state.classGradebook || []) {
+  const students = new Set(records.map(r => r.studentName));
+  const assignments = new Set(records.map(r => r.assignmentTitle));
+  return {
+    records: records.length,
+    students: students.size,
+    assignments: assignments.size,
+    average: average(records.map(r => r.percent)),
+    mistakes: records.reduce((sum, r) => sum + Number(r.mistakes || 0), 0)
+  };
+}
+
+function csvCell(value) {
+  return '"' + String(value ?? '').replace(/"/g, '""') + '"';
+}
+
+function gradebookCSV(records = state.classGradebook || []) {
+  const rows = [
+    ['Μαθητής','Αποστολή','Παράδοση','Προθεσμία','Λυμένες','Σύνολο','Ποσοστό','Λάθη','XP','Οβολοί','Σήματα','Σφραγίστηκε']
+  ];
+  records.forEach(r => rows.push([
+    r.studentName,
+    r.assignmentTitle,
+    submissionDateLabel(r.submittedAt),
+    r.assignmentDue || '',
+    r.solved,
+    r.total,
+    r.percent + '%',
+    r.mistakes,
+    r.xp,
+    r.coins,
+    r.badgesCount,
+    r.rewardClaimed ? 'Ναι' : 'Όχι'
+  ]));
+  return rows.map(row => row.map(csvCell).join(';')).join('\n');
+}
+
+function gradebookTablesHTML(records = state.classGradebook || []) {
+  if (!records.length) return '<div class="empty-state">Δεν υπάρχουν ακόμη αποθηκευμένες παραδόσεις. Επικόλλησε κωδικούς παράδοσης μαθητών για να δημιουργηθεί καρτέλα τάξης.</div>';
+  const byStudent = groupBy(records, r => r.studentName);
+  const studentRows = Object.entries(byStudent).map(([student, rows]) => {
+    const latest = rows.slice().sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))[0];
+    const mistakes = rows.reduce((sum, r) => sum + Number(r.mistakes || 0), 0);
+    return `<tr><td><strong>${escapeHTML(student)}</strong><br><small>${escapeHTML(latest.rank || '')}</small></td><td>${rows.length}</td><td>${average(rows.map(r => r.percent))}%</td><td>${Math.max(...rows.map(r => r.percent))}%</td><td>${mistakes}</td><td>${escapeHTML(submissionDateLabel(latest.submittedAt))}</td></tr>`;
+  }).join('');
+  const byAssignment = groupBy(records, r => r.assignmentTitle);
+  const assignmentRows = Object.entries(byAssignment).map(([assignment, rows]) => {
+    const completed = rows.filter(r => Number(r.percent) >= 100).length;
+    const mistakes = rows.reduce((sum, r) => sum + Number(r.mistakes || 0), 0);
+    return `<tr><td><strong>${escapeHTML(assignment)}</strong></td><td>${rows.length}</td><td>${average(rows.map(r => r.percent))}%</td><td>${completed}/${rows.length}</td><td>${mistakes}</td></tr>`;
+  }).join('');
+  const detailRows = records.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><strong>${escapeHTML(r.studentName)}</strong><br><small>${escapeHTML(r.rank || '')}</small></td>
+      <td><strong>${escapeHTML(r.assignmentTitle)}</strong><br><small>${escapeHTML(submissionDateLabel(r.submittedAt))}</small></td>
+      <td>${r.solved}/${r.total}</td>
+      <td>${r.percent}%</td>
+      <td>${r.mistakes}</td>
+      <td><button class="ghost-tool small-tool inspect-gradebook" data-key="${escapeHTML(r.key)}">Ανάλυση</button><button class="ghost-tool small-tool delete-gradebook" data-key="${escapeHTML(r.key)}">Διαγραφή</button></td>
+    </tr>
+  `).join('');
+  return `
+    <section class="gradebook-section">
+      <h3>Σύνοψη ανά μαθητή</h3>
+      <table class="submission-table"><thead><tr><th>Μαθητής</th><th>Παραδόσεις</th><th>Μ.Ο.</th><th>Καλύτερο</th><th>Λάθη</th><th>Τελευταία</th></tr></thead><tbody>${studentRows}</tbody></table>
+    </section>
+    <section class="gradebook-section">
+      <h3>Σύνοψη ανά αποστολή</h3>
+      <table class="submission-table"><thead><tr><th>Αποστολή</th><th>Παραδόσεις</th><th>Μ.Ο.</th><th>Ολοκληρώσεις</th><th>Λάθη</th></tr></thead><tbody>${assignmentRows}</tbody></table>
+    </section>
+    <section class="gradebook-section">
+      <h3>Αναλυτικές παραδόσεις</h3>
+      <table class="submission-table"><thead><tr><th>#</th><th>Μαθητής</th><th>Αποστολή</th><th>Λυμένες</th><th>Ποσοστό</th><th>Λάθη</th><th>Ενέργειες</th></tr></thead><tbody>${detailRows}</tbody></table>
+    </section>
+  `;
+}
+
+function gradebookRecordAnalysisHTML(record) {
+  if (!record) return '';
+  const areaRows = Object.entries(record.areaStats || {}).map(([place, row]) => `<tr><td>${escapeHTML(place)}</td><td>${row.solved}/${row.total}</td><td>${row.mistakes}</td></tr>`).join('');
+  const problemItems = (record.items || []).filter(item => !item.solved || item.mistakes > 0);
+  const problemRows = problemItems.length ? problemItems.map((item, i) => `<tr><td>${i + 1}</td><td><strong>${escapeHTML(item.title)}</strong><br><small>${escapeHTML(item.place)} • ${exerciseTypeLabel(item.type)}</small></td><td>${item.solved ? 'Λύθηκε' : 'Άλυτη'}</td><td>${item.mistakes}</td></tr>`).join('') : '<tr><td colspan="4">Δεν εμφανίζονται αδύναμα σημεία σε αυτή την παράδοση.</td></tr>';
+  return `
+    <section class="gradebook-analysis">
+      <div class="submission-report-head">
+        <div>
+          <p class="eyebrow">Ανάλυση παράδοσης</p>
+          <h3>${escapeHTML(record.studentName)} — ${escapeHTML(record.assignmentTitle)}</h3>
+          <p><strong>Παράδοση:</strong> ${escapeHTML(submissionDateLabel(record.submittedAt))}</p>
+        </div>
+        <div class="assignment-score"><strong>${record.percent}%</strong><span>${record.solved}/${record.total}</span></div>
+      </div>
+      <h4>Ανά περιοχή</h4>
+      <table class="submission-table"><thead><tr><th>Περιοχή</th><th>Λυμένες</th><th>Λάθη</th></tr></thead><tbody>${areaRows}</tbody></table>
+      <h4>Αδύναμα σημεία</h4>
+      <table class="submission-table"><thead><tr><th>#</th><th>Δοκιμασία</th><th>Κατάσταση</th><th>Λάθη</th></tr></thead><tbody>${problemRows}</tbody></table>
+    </section>
+  `;
+}
+
+function renderClassGradebook() {
+  if (!ensureTeacherAccess()) return;
+  featureStart();
+  const records = state.classGradebook || [];
+  const summary = gradebookSummary(records);
+  $('#lessonView').innerHTML = `
+    <article class="lesson-card feature-panel gradebook-panel">
+      <p class="eyebrow">Build 2.12 • Εργαλεία καθηγητή</p>
+      <h2>📊 Καρτέλα τάξης</h2>
+      <p>Συγκέντρωσε εδώ τους κωδικούς παράδοσης των μαθητών. Η καρτέλα αποθηκεύεται τοπικά στη συσκευή του καθηγητή και δίνει συνολική εικόνα τάξης χωρίς server.</p>
+      <div class="gradebook-import">
+        <label class="form-row"><span>Κωδικοί παράδοσης</span><textarea id="gradebookCodes" rows="6" placeholder="Επικόλλησε έναν ή περισσότερους κωδικούς παράδοσης μαθητών. Για πολλούς κωδικούς, βάλε τον καθένα σε νέα γραμμή ή χώρισέ τους με κενή γραμμή."></textarea></label>
+        <div class="assignment-actions">
+          <button id="addGradebookCodes">Προσθήκη στην καρτέλα</button>
+          <button id="exportGradebookCsv" class="ghost-tool" ${records.length ? '' : 'disabled'}>Εξαγωγή CSV</button>
+          <button id="printGradebook" class="ghost-tool" ${records.length ? '' : 'disabled'}>Εκτύπωση</button>
+          <button id="clearGradebook" class="ghost-tool" ${records.length ? '' : 'disabled'}>Καθαρισμός καρτέλας</button>
+        </div>
+      </div>
+      <div class="submission-metrics gradebook-metrics">
+        <div><strong>${summary.students}</strong><span>μαθητές</span></div>
+        <div><strong>${summary.records}</strong><span>παραδόσεις</span></div>
+        <div><strong>${summary.average}%</strong><span>μέσο ποσοστό</span></div>
+        <div><strong>${summary.mistakes}</strong><span>λάθη συνολικά</span></div>
+      </div>
+      <div id="gradebookOutput">${gradebookTablesHTML(records)}</div>
+      <div id="gradebookAnalysis"></div>
+    </article>
+  `;
+  $('#addGradebookCodes').addEventListener('click', () => {
+    const submissions = parseSubmissionCodes($('#gradebookCodes').value);
+    if (!submissions.length) return toast('Δεν βρέθηκε έγκυρος κωδικός παράδοσης.');
+    const result = addSubmissionsToGradebook(submissions);
+    toast(`Προστέθηκαν ${result.added} παραδόσεις${result.duplicates ? ' • διπλότυπα: ' + result.duplicates : ''}.`);
+    renderClassGradebook();
+  });
+  $('#exportGradebookCsv').addEventListener('click', () => downloadTextFile('kartela-taxis-akadimia.csv', gradebookCSV(state.classGradebook || [])));
+  $('#printGradebook').addEventListener('click', () => window.print());
+  $('#clearGradebook').addEventListener('click', () => {
+    if (!confirm('Να καθαριστεί όλη η καρτέλα τάξης από αυτή τη συσκευή;')) return;
+    state.classGradebook = [];
+    save();
+    renderClassGradebook();
+  });
+  $$('.delete-gradebook').forEach(btn => btn.addEventListener('click', () => {
+    state.classGradebook = (state.classGradebook || []).filter(r => r.key !== btn.dataset.key);
+    save();
+    renderClassGradebook();
+  }));
+  $$('.inspect-gradebook').forEach(btn => btn.addEventListener('click', () => {
+    const record = (state.classGradebook || []).find(r => r.key === btn.dataset.key);
+    $('#gradebookAnalysis').innerHTML = gradebookRecordAnalysisHTML(record);
+    $('#gradebookAnalysis').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  $('#lessonView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function assignmentRefs(assignment) {
   return (assignment.ids || []).map(exerciseRefById).filter(Boolean);
 }
@@ -2936,7 +3407,7 @@ function renderAssignmentBuilder() {
   featureStart();
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel assignment-builder">
-      <p class="eyebrow">Build 2.10 • Εργαλεία καθηγητή</p>
+      <p class="eyebrow">Build 2.12 • Εργαλεία καθηγητή</p>
       <h2>📦 Δημιουργός αποστολών</h2>
       <p>Φτιάξε μια μικρή εργασία από τις υπάρχουσες δοκιμασίες της Ακαδημίας. Η εφαρμογή παράγει έναν κωδικό αποστολής που οι μαθητές φορτώνουν στο <strong>Αποστολή τάξης</strong> και λύνουν πλέον μέσα σε ενιαία ροή ερωτήσεων.</p>
 
@@ -3088,7 +3559,7 @@ function renderClassMissionCenter() {
   const assignments = Object.values(state.classAssignments || {}).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel class-mission-center">
-      <p class="eyebrow">Build 2.10 • Μαθητική αποστολή</p>
+      <p class="eyebrow">Build 2.12 • Μαθητική αποστολή</p>
       <h2>🎒 Αποστολή τάξης</h2>
       <p>Επικόλλησε τον κωδικό που θα σου δώσει ο καθηγητής. Η αποστολή ανοίγει πλέον σαν κανονικό quiz μέσα στην ίδια οθόνη, με επόμενη ερώτηση, πρόοδο και τελικό σφράγισμα.</p>
       <div class="mission-import-box">
@@ -3210,7 +3681,7 @@ function renderClassMissionDetail(id) {
 
   $('#lessonView').innerHTML = `
     <article class="lesson-card feature-panel assignment-detail assignment-player">
-      <p class="eyebrow">Build 2.10 • Αποστολή τάξης σε ροή quiz</p>
+      <p class="eyebrow">Build 2.12 • Αποστολή τάξης σε ροή quiz και παράδοση</p>
       <div class="assignment-player-head">
         <div>
           <h2>📦 ${escapeHTML(assignment.title)}</h2>
@@ -3230,6 +3701,7 @@ function renderClassMissionDetail(id) {
           <button id="backAssignmentsBtn" class="ghost-tool">Πίσω στις αποστολές</button>
           <button id="claimAssignmentReward" ${stats.percent >= 100 && !claimed ? '' : 'disabled'}>Σφράγισε αποστολή +${assignment.reward} XP</button>
           <button id="printAssignmentBtn" class="ghost-tool">Εκτύπωση</button>
+          <button id="makeSubmissionBtn" class="ghost-tool" ${stats.solved > 0 ? '' : 'disabled'}>Παράδοση αποτελέσματος</button>
         </div>
       </div>
 
@@ -3255,6 +3727,7 @@ function renderClassMissionDetail(id) {
         <summary>Λίστα ερωτήσεων αποστολής</summary>
         <div class="assignment-compact-list">${assignmentCompactListHTML(refs, currentIndex)}</div>
       </details>
+      <div id="assignmentSubmissionOutput">${state.assignmentSubmissions[id] ? submissionCodeBoxHTML(validateSubmissionPayload(decodeSubmissionPayload(state.assignmentSubmissions[id].code)), state.assignmentSubmissions[id].code) : ''}</div>
     </article>
   `;
 
@@ -3262,6 +3735,13 @@ function renderClassMissionDetail(id) {
   $('#backAssignmentsBtn').addEventListener('click', renderClassMissionCenter);
   $('#claimAssignmentReward').addEventListener('click', () => claimAssignmentReward(id));
   $('#printAssignmentBtn').addEventListener('click', () => window.print());
+  $('#makeSubmissionBtn').addEventListener('click', () => createAssignmentSubmission(id));
+  const copySubmissionBtn = $('#copySubmissionCode');
+  if (copySubmissionBtn) copySubmissionBtn.addEventListener('click', () => copyText($('#submissionCodeOutput').value, 'Ο κωδικός παράδοσης αντιγράφηκε.'));
+  const downloadSubmissionBtn = $('#downloadSubmissionCode');
+  if (downloadSubmissionBtn) downloadSubmissionBtn.addEventListener('click', () => downloadTextFile('paradosi-apostolis-' + id + '.txt', $('#submissionCodeOutput').value));
+  const printSubmissionSummary = $('#printSubmissionSummary');
+  if (printSubmissionSummary) printSubmissionSummary.addEventListener('click', () => window.print());
   $('#prevAssignmentQuestion').addEventListener('click', () => {
     setAssignmentCursor(id, prevIndex, refs.length);
     renderClassMissionDetail(id);
@@ -3294,6 +3774,8 @@ function claimAssignmentReward(id) {
   state.xp += Number(assignment.reward || 120);
   state.coins += Math.ceil(Number(assignment.reward || 120) / 20);
   addBadge('Ολοκλήρωση αποστολής τάξης');
+  const submission = buildAssignmentSubmission(assignment);
+  state.assignmentSubmissions[id] = { code: encodeSubmissionPayload(submission), createdAt: submission.submittedAt, percent: submission.percent, solved: submission.solved, total: submission.total };
   save();
   renderStats();
   renderClassMissionDetail(id);
@@ -3361,6 +3843,8 @@ $('#certificateBtn').addEventListener('click', renderCertificate);
 $('#teacherHubBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTeacherHub(); });
 $('#testGeneratorBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderTestGenerator(); });
 $('#assignmentBuilderBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderAssignmentBuilder(); });
+$('#submissionReviewBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderSubmissionReview(); });
+$('#classGradebookBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassGradebook(); });
 $('#classroomModeBtn').addEventListener('click', () => { if (ensureTeacherAccess()) renderClassroomMode(); });
 $('#randomChallengeBtn').addEventListener('click', openRandomUnsolved);
 $('#exportProgressBtn').addEventListener('click', () => { if (ensureTeacherAccess()) exportProgress(); });

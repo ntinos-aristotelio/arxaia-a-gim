@@ -1338,3 +1338,126 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   .assignment-compact-row em { text-align: left; }
   .assignment-dot { width: 44px; }
 }
+
+/* Build 2.11 - Παράδοση αποστολής & έλεγχος καθηγητή */
+.submission-box,
+.submission-report {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,252,241,.92), rgba(235,224,198,.74));
+  border: 1px solid rgba(166,126,62,.32);
+  box-shadow: 0 12px 26px rgba(29,42,58,.08);
+}
+.submission-head,
+.submission-report-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 16px;
+  align-items: center;
+}
+.submission-box textarea,
+.submission-review-panel textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(166,126,62,.36);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255,255,255,.76);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .86rem;
+}
+.submission-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+.submission-metrics div {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(166,126,62,.24);
+  text-align: center;
+}
+.submission-metrics strong {
+  display: block;
+  font-size: 1.25rem;
+  color: #172033;
+}
+.submission-metrics span {
+  display: block;
+  color: #6b604d;
+  font-size: .82rem;
+  margin-top: 3px;
+}
+.submission-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 18px;
+  background: rgba(255,255,255,.7);
+  border-radius: 18px;
+  overflow: hidden;
+}
+.submission-table th,
+.submission-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(166,126,62,.18);
+  text-align: left;
+  vertical-align: top;
+}
+.submission-table th {
+  background: rgba(23,32,51,.92);
+  color: #f4e6c8;
+  font-size: .85rem;
+}
+.submission-table small {
+  color: #666;
+}
+@media (max-width: 760px) {
+  .submission-head,
+  .submission-report-head,
+  .submission-metrics { grid-template-columns: 1fr; }
+}
+
+/* Build 2.12 - Καρτέλα τάξης */
+.gradebook-import,
+.gradebook-analysis {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,252,241,.92), rgba(235,224,198,.72));
+  border: 1px solid rgba(166,126,62,.30);
+  box-shadow: 0 12px 26px rgba(29,42,58,.07);
+}
+.gradebook-import textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgba(166,126,62,.36);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255,255,255,.78);
+  color: #1d2a3a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .86rem;
+}
+.gradebook-metrics { margin-top: 18px; }
+.gradebook-section {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.50);
+  border: 1px solid rgba(166,126,62,.18);
+}
+.gradebook-section h3,
+.gradebook-analysis h4 { margin-top: 0; }
+.small-tool {
+  padding: 7px 10px;
+  font-size: .82rem;
+  margin: 2px;
+}
+@media (max-width: 760px) {
+  .gradebook-section { padding: 12px; overflow-x: auto; }
+  .gradebook-panel .submission-table { min-width: 720px; }
+}
